@@ -171,9 +171,12 @@ export function PlannerOverview({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{event.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {event.date === today ? "Today" : formatDateShort(event.date)} · {event.allDay ? "All day" : formatTime(event.time)}
-                  </p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="h-5 px-2 text-[10px]">{event.category ?? "Other"}</Badge>
+                    <p className="text-xs text-muted-foreground">
+                      {event.date === today ? "Today" : formatDateShort(event.date)} · {event.allDay ? "All day" : formatTime(event.time)}
+                    </p>
+                  </div>
                 </div>
                 <Clock3 aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
               </div>

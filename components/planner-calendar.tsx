@@ -139,9 +139,12 @@ export function PlannerCalendar({
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium">{event.title}</p>
-                        <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <Badge variant="secondary" className="h-5 px-2 text-[10px]">{event.category ?? "Other"}</Badge>
+                          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <Clock3 aria-hidden="true" className="size-3.5" />{event.allDay ? "All day" : formatTime(event.time)}
-                        </p>
+                          </p>
+                        </div>
                       </div>
                       <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label={`Remove event: ${event.title}`} onClick={() => onDelete(event.id)}>
                         <span className="sr-only">Remove event</span>

@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { EXPENSE_CATEGORIES, getGoalDeadline } from "@/components/planner-data"
-import type { CreateKind, ExpenseCategory, GoalPeriod, NewPlannerRecord, TaskPriority } from "@/components/planner-types"
+import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, getGoalDeadline } from "@/components/planner-data"
+import type { CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, TaskPriority } from "@/components/planner-types"
 
 const CREATE_DETAILS: Record<CreateKind, { title: string; description: string }> = {
   expense: { title: "Add an expense", description: "Capture a purchase and keep your monthly spending in view." },
@@ -57,6 +57,7 @@ export function PlannerCreateDialog({
   const [period, setPeriod] = useState<GoalPeriod>("month")
   const [remindAt, setRemindAt] = useState(`${defaultDate}T09:00`)
   const [time, setTime] = useState("09:00")
+  const [eventCategory, setEventCategory] = useState<EventCategory>("Other")
   const [allDay, setAllDay] = useState(false)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
@@ -112,7 +113,7 @@ export function PlannerCreateDialog({
       if (activeKind === "event") {
         await onCreate({
           kind: "event",
-          item: { id, title: cleanTitle, date, time: allDay ? "All day" : time, allDay },
+          item: { id, title: cleanTitle, category: eventCategory, date, time: allDay ? "All day" : time, allDay },
         })
       }
     } catch (saveError) {
@@ -251,6 +252,23 @@ export function PlannerCreateDialog({
 
             {activeKind === "event" ? (
               <>
+                <Field>
+                  <FieldLabel htmlFor="event-category">Category</FieldLabel>
+                  <Select value={eventCategory} onValueChange={(value) => {
+                    if (EVENT_CATEGORIES.includes(value as EventCategory)) setEventCategory(value as EventCategory)
+                  }}>
+                    <SelectTrigger id="event-category" className="w-full">
+                      <SelectValue placeholder="Choose a category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {EVENT_CATEGORIES.map((option) => (
+                          <SelectItem key={option} value={option}>{option}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
                 <FieldGroup className="grid grid-cols-2 gap-3">
                   <Field>
                     <FieldLabel htmlFor="event-date">Date</FieldLabel>

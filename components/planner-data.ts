@@ -1,4 +1,4 @@
-import type { ExpenseCategory, GoalPeriod, PlannerData } from "@/components/planner-types"
+import type { EventCategory, ExpenseCategory, GoalPeriod, PlannerData } from "@/components/planner-types"
 
 export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "Groceries",
@@ -6,6 +6,19 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "Transport",
   "Home",
   "Wellness",
+  "Other",
+]
+
+export const EVENT_CATEGORIES: EventCategory[] = [
+  "Work & Office",
+  "Faith & Spiritual",
+  "Shopping & Errands",
+  "Achievements",
+  "Happy Moments",
+  "Festivals & Holidays",
+  "Family & Friends",
+  "Health & Wellness",
+  "Travel",
   "Other",
 ]
 
@@ -120,10 +133,10 @@ export function createDemoData(today: string): PlannerData {
       { id: "reminder-3", title: "Review subscriptions", remindAt: dateTime(2, "18:00"), completed: false },
     ],
     events: [
-      { id: "event-1", title: "Weekly reset", date: today, time: "10:00", allDay: false },
-      { id: "event-2", title: "Design review", date: date(1), time: "14:30", allDay: false },
-      { id: "event-3", title: "Dinner with Sam", date: date(3), time: "18:00", allDay: false },
-      { id: "event-4", title: "Payday", date: date(6), time: "All day", allDay: true },
+      { id: "event-1", title: "Weekly reset", category: "Other", date: today, time: "10:00", allDay: false },
+      { id: "event-2", title: "Design review", category: "Work & Office", date: date(1), time: "14:30", allDay: false },
+      { id: "event-3", title: "Dinner with Sam", category: "Family & Friends", date: date(3), time: "18:00", allDay: false },
+      { id: "event-4", title: "Payday", category: "Other", date: date(6), time: "All day", allDay: true },
     ],
   }
 }

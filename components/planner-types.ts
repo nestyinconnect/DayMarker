@@ -1,6 +1,17 @@
 export type PlannerView = "overview" | "expenses" | "tasks" | "goals" | "calendar" | "reminders"
 export type CreateKind = "expense" | "task" | "goal" | "reminder" | "event"
 export type ExpenseCategory = "Groceries" | "Dining" | "Transport" | "Home" | "Wellness" | "Other"
+export type EventCategory =
+  | "Work & Office"
+  | "Faith & Spiritual"
+  | "Shopping & Errands"
+  | "Achievements"
+  | "Happy Moments"
+  | "Festivals & Holidays"
+  | "Family & Friends"
+  | "Health & Wellness"
+  | "Travel"
+  | "Other"
 export type TaskPriority = "low" | "normal" | "high"
 export type GoalPeriod = "month" | "year"
 
@@ -38,6 +49,7 @@ export interface Reminder {
 export interface CalendarEvent {
   id: string
   title: string
+  category?: EventCategory
   date: string
   time: string
   allDay: boolean
