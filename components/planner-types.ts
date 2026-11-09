@@ -42,6 +42,7 @@ export interface Goal {
 export interface Reminder {
   id: string
   title: string
+  category?: EventCategory
   remindAt: string
   completed: boolean
 }

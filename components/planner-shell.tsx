@@ -24,7 +24,7 @@ import { PlannerOverview } from "@/components/planner-overview"
 import { PlannerReminders } from "@/components/planner-reminders"
 import { PlannerTasks } from "@/components/planner-tasks"
 import { formatCurrency, formatDateLong } from "@/components/planner-data"
-import type { CalendarEvent, CreateKind, NewPlannerRecord, PlannerData, PlannerView } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, NewPlannerRecord, PlannerData, PlannerView, Reminder } from "@/components/planner-types"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS: { id: PlannerView; label: string; icon: LucideIcon }[] = [
@@ -219,6 +219,19 @@ export function PlannerShell({ today }: { today: string }) {
     setSyncMessage(error instanceof Error ? error.message : "Unable to sync with Google Sheets.")
   }
 
+  async function addReminders(items: Reminder[]) {
+    const response = await fetch("/api/planner", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ kind: "reminder", operation: "append", items }),
+    })
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || "Unable to save to Google Sheets.")
+    setSyncStatus("ready")
+    setSyncMessage("")
+    setData((current) => ({ ...current, reminders: [...items, ...current.reminders] }))
+  }
+
   async function addRecord(record: NewPlannerRecord) {
     await persistRecord(record.kind, record.item.id, record.item, "upsert")
     setData((current) => {
@@ -382,6 +395,7 @@ export function PlannerShell({ today }: { today: string }) {
         editEvent={editingEvent}
         onOpenChange={(open) => { if (!open) { setCreateKind(null); setEditingEvent(null) } }}
         onCreate={addRecord}
+        onCreateReminders={addReminders}
       />
     </div>
   )

@@ -1,13 +1,23 @@
+import { useState } from "react"
 import { AlarmClock, Bell, Plus, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { formatDateTime } from "@/components/planner-data"
+import { EVENT_CATEGORIES, formatDateLong, formatTime } from "@/components/planner-data"
 import { EmptyState, SectionHeader } from "@/components/planner-shared"
-import type { Reminder } from "@/components/planner-types"
+import type { EventCategory, Reminder } from "@/components/planner-types"
+
+const MONTHS = Array.from({ length: 12 }, (_, index) => ({
+  value: String(index + 1).padStart(2, "0"),
+  label: new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(2000, index, 1, 12)),
+}))
+const MONTH_ITEMS = [{ value: "all", label: "All" }, ...MONTHS]
+const CATEGORY_ITEMS = [{ value: "all", label: "All" }, ...EVENT_CATEGORIES.map((category) => ({ value: category, label: category }))]
 
 export function PlannerReminders({
   reminders,
@@ -22,7 +32,12 @@ export function PlannerReminders({
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
 }) {
-  const sorted = [...reminders].sort((a, b) => a.remindAt.localeCompare(b.remindAt))
+  const [monthFilter, setMonthFilter] = useState("all")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const sorted = reminders
+    .filter((reminder) => monthFilter === "all" || reminder.remindAt.slice(5, 7) === monthFilter)
+    .filter((reminder) => categoryFilter === "all" || (reminder.category ?? "Other") === categoryFilter)
+    .sort((a, b) => a.remindAt.localeCompare(b.remindAt))
   const activeCount = reminders.filter((reminder) => !reminder.completed).length
   const overdueCount = reminders.filter((reminder) => !reminder.completed && reminder.remindAt.slice(0, 10) < today).length
 
@@ -43,7 +58,42 @@ export function PlannerReminders({
           <div><CardTitle>Your reminders</CardTitle><CardDescription className="mt-1">Mark one done or remove it when it’s no longer needed.</CardDescription></div>
           <span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><Bell aria-hidden="true" className="size-4" /></span>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="space-y-4 pt-0">
+          <FieldGroup className="grid gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="reminder-list-month">Month</FieldLabel>
+              <Select items={MONTH_ITEMS} value={monthFilter} onValueChange={(value) => {
+                if (typeof value === "string" && MONTH_ITEMS.some((month) => month.value === value)) setMonthFilter(value)
+              }}>
+                <SelectTrigger id="reminder-list-month" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {MONTH_ITEMS.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="reminder-list-category">Category</FieldLabel>
+              <Select items={CATEGORY_ITEMS} value={categoryFilter} onValueChange={(value) => {
+                if (typeof value === "string" && (value === "all" || EVENT_CATEGORIES.includes(value as EventCategory))) setCategoryFilter(value)
+              }}>
+                <SelectTrigger id="reminder-list-category" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {CATEGORY_ITEMS.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
+          <div aria-live="polite" className="text-xs text-muted-foreground">
+            {sorted.length} {sorted.length === 1 ? "reminder" : "reminders"}
+          </div>
           {sorted.length ? (
             <div>
               {sorted.map((reminder, index) => {
@@ -63,9 +113,11 @@ export function PlannerReminders({
                           {reminder.title}
                         </label>
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <AlarmClock aria-hidden="true" className="size-3.5" />{formatDateTime(reminder.remindAt)}
+                          <AlarmClock aria-hidden="true" className="size-3.5" />{formatDateLong(reminder.remindAt.slice(0, 10))} · {formatTime(reminder.remindAt.slice(11, 16))}
                         </p>
                       </div>
+                      <Badge variant="outline" className="hidden sm:inline-flex">{MONTHS[Number(reminder.remindAt.slice(5, 7)) - 1]?.label}</Badge>
+                      <Badge variant="secondary" className="hidden sm:inline-flex">{reminder.category ?? "Other"}</Badge>
                       {overdue ? <Badge variant="destructive">Overdue</Badge> : null}
                       {!overdue && !reminder.completed ? <Badge variant="secondary">Upcoming</Badge> : null}
                       <Button
@@ -84,6 +136,12 @@ export function PlannerReminders({
                 )
               })}
             </div>
+          ) : reminders.length ? (
+            <EmptyState
+              icon={Bell}
+              title="No reminders match these filters"
+              description="Try a different month or category."
+            />
           ) : (
             <EmptyState
               icon={Bell}

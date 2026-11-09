@@ -201,6 +201,15 @@ export async function writePlannerRecord(input: {
   )
 }
 
+export async function appendPlannerRecords(kind: RecordKind, items: { id: string }[]) {
+  const { sheetId, token } = await connectToSheet()
+  const values = items.map((item) => [kind, item.id, JSON.stringify(item)])
+  await googleRequest(`${sheetId}/values/${SHEET_NAME}!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, token, {
+    method: "POST",
+    body: JSON.stringify({ values }),
+  })
+}
+
 export function isRecordKind(value: unknown): value is RecordKind {
   return typeof value === "string" && VALID_KINDS.includes(value as RecordKind)
 }

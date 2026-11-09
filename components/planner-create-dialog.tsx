@@ -24,13 +24,23 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, getGoalDeadline } from "@/components/planner-data"
-import type { CalendarEvent, CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, TaskPriority } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, Reminder, TaskPriority } from "@/components/planner-types"
+
+const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
+  value: index + 1,
+  label: new Intl.DateTimeFormat("en-US", { month: "short" }).format(new Date(2000, index, 1, 12)),
+}))
+const DAY_OPTIONS = Array.from({ length: 31 }, (_, index) => index + 1)
+
+function toggleNumber(values: number[], value: number) {
+  return values.includes(value) ? values.filter((item) => item !== value) : [...values, value].sort((a, b) => a - b)
+}
 
 const CREATE_DETAILS: Record<CreateKind, { title: string; description: string }> = {
   expense: { title: "Add an expense", description: "Capture a purchase and keep your monthly spending in view." },
   task: { title: "Add a task", description: "Give a small next step a place on your list." },
   goal: { title: "Create a goal", description: "Choose a monthly or year-end focus and track it as you go." },
-  reminder: { title: "Set a reminder", description: "Keep an important follow-up from slipping through the cracks." },
+  reminder: { title: "Set reminders", description: "Pick the months and days to repeat this reminder on." },
   event: { title: "Add an event", description: "Put a plan on the calendar so it has a time and place in your week." },
 }
 
@@ -42,6 +52,7 @@ export function PlannerCreateDialog({
   editEvent,
   onOpenChange,
   onCreate,
+  onCreateReminders,
 }: {
   open: boolean
   kind: CreateKind | null
@@ -50,6 +61,7 @@ export function PlannerCreateDialog({
   editEvent?: CalendarEvent | null
   onOpenChange: (open: boolean) => void
   onCreate: (record: NewPlannerRecord) => Promise<void>
+  onCreateReminders: (items: Reminder[]) => Promise<void>
 }) {
   const [title, setTitle] = useState(editEvent?.title ?? "")
   const [amount, setAmount] = useState("")
@@ -57,7 +69,10 @@ export function PlannerCreateDialog({
   const [date, setDate] = useState(editEvent?.date ?? defaultDate)
   const [priority, setPriority] = useState<TaskPriority>("normal")
   const [period, setPeriod] = useState<GoalPeriod>("month")
-  const [remindAt, setRemindAt] = useState(`${defaultDate}T09:00`)
+  const [reminderCategory, setReminderCategory] = useState<EventCategory>("Other")
+  const [reminderYear, setReminderYear] = useState(defaultDate.slice(0, 4))
+  const [reminderMonths, setReminderMonths] = useState<number[]>([Number(defaultDate.slice(5, 7))])
+  const [reminderDays, setReminderDays] = useState<number[]>([Number(defaultDate.slice(8, 10))])
   const [time, setTime] = useState(editEvent && !editEvent.allDay ? editEvent.time : "09:00")
   const [eventCategory, setEventCategory] = useState<EventCategory>(editEvent?.category ?? "Other")
   const [allDay, setAllDay] = useState(editEvent?.allDay ?? false)
@@ -68,6 +83,11 @@ export function PlannerCreateDialog({
   const details = isEditing
     ? { title: "Edit event", description: "Update the name, date, time, or category of this event." }
     : CREATE_DETAILS[activeKind]
+  const yearOptions = [today.slice(0, 4), String(Number(today.slice(0, 4)) + 1)]
+  const reminderDates = reminderMonths.flatMap((month) => reminderDays
+    .filter((day) => new Date(Number(reminderYear), month - 1, day, 12).getMonth() === month - 1)
+    .map((day) => `${reminderYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`))
+  const skippedReminderDates = reminderMonths.length * reminderDays.length - reminderDates.length
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -109,10 +129,17 @@ export function PlannerCreateDialog({
       }
 
       if (activeKind === "reminder") {
-        await onCreate({
-          kind: "reminder",
-          item: { id, title: cleanTitle, remindAt, completed: false },
-        })
+        if (!reminderDates.length) {
+          setError("Pick at least one month and one valid day.")
+          return
+        }
+        await onCreateReminders(reminderDates.map((dateKey) => ({
+          id: crypto.randomUUID(),
+          title: cleanTitle,
+          category: reminderCategory,
+          remindAt: `${dateKey}T${time}`,
+          completed: false,
+        })))
       }
 
       if (activeKind === "event") {
@@ -133,7 +160,7 @@ export function PlannerCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => onOpenChange(nextOpen)}>
-      <DialogContent className="sm:max-w-[440px]">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle>{details.title}</DialogTitle>
           <DialogDescription>{details.description}</DialogDescription>
@@ -242,17 +269,89 @@ export function PlannerCreateDialog({
             ) : null}
 
             {activeKind === "reminder" ? (
-              <Field>
-                <FieldLabel htmlFor="reminder-time">Remind me</FieldLabel>
-                <Input
-                  id="reminder-time"
-                  type="datetime-local"
-                  value={remindAt}
-                  onChange={(event) => setRemindAt(event.target.value)}
-                  min={`${today}T00:00`}
-                  required
-                />
-              </Field>
+              <>
+                <FieldGroup className="grid grid-cols-2 gap-3">
+                  <Field>
+                    <FieldLabel htmlFor="reminder-category">Category</FieldLabel>
+                    <Select value={reminderCategory} onValueChange={(value) => {
+                      if (EVENT_CATEGORIES.includes(value as EventCategory)) setReminderCategory(value as EventCategory)
+                    }}>
+                      <SelectTrigger id="reminder-category" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {EVENT_CATEGORIES.map((option) => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="reminder-year">Year</FieldLabel>
+                    <Select value={reminderYear} onValueChange={(value) => {
+                      if (typeof value === "string" && yearOptions.includes(value)) setReminderYear(value)
+                    }}>
+                      <SelectTrigger id="reminder-year" className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {yearOptions.map((option) => (
+                            <SelectItem key={option} value={option}>{option}</SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </FieldGroup>
+
+                <Field>
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel id="reminder-months-label">Months</FieldLabel>
+                    <div className="flex gap-1">
+                      <Button type="button" variant="ghost" size="xs" onClick={() => setReminderMonths(MONTH_OPTIONS.map((month) => month.value))}>All</Button>
+                      <Button type="button" variant="ghost" size="xs" onClick={() => setReminderMonths([])}>Clear</Button>
+                    </div>
+                  </div>
+                  <div role="group" aria-labelledby="reminder-months-label" className="grid grid-cols-6 gap-1">
+                    {MONTH_OPTIONS.map((month) => {
+                      const selected = reminderMonths.includes(month.value)
+                      return (
+                        <Button key={month.value} type="button" size="sm" variant={selected ? "default" : "outline"} aria-pressed={selected} onClick={() => setReminderMonths((current) => toggleNumber(current, month.value))}>
+                          {month.label}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </Field>
+
+                <Field>
+                  <div className="flex items-center justify-between gap-2">
+                    <FieldLabel id="reminder-days-label">Days of the month</FieldLabel>
+                    <div className="flex gap-1">
+                      <Button type="button" variant="ghost" size="xs" onClick={() => setReminderDays([...DAY_OPTIONS])}>All</Button>
+                      <Button type="button" variant="ghost" size="xs" onClick={() => setReminderDays([])}>Clear</Button>
+                    </div>
+                  </div>
+                  <div role="group" aria-labelledby="reminder-days-label" className="grid grid-cols-7 gap-1">
+                    {DAY_OPTIONS.map((day) => {
+                      const selected = reminderDays.includes(day)
+                      return (
+                        <Button key={day} type="button" size="sm" variant={selected ? "default" : "outline"} aria-pressed={selected} className="px-0 tabular-nums" onClick={() => setReminderDays((current) => toggleNumber(current, day))}>
+                          {day}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="reminder-time">Time</FieldLabel>
+                  <Input id="reminder-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} required />
+                  <FieldDescription aria-live="polite">
+                    {reminderDates.length} {reminderDates.length === 1 ? "reminder" : "reminders"} will be added
+                    {skippedReminderDates ? ` · ${skippedReminderDates} invalid ${skippedReminderDates === 1 ? "date" : "dates"} skipped (e.g. Feb 30)` : ""}
+                  </FieldDescription>
+                </Field>
+              </>
             ) : null}
 
             {activeKind === "event" ? (
