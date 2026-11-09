@@ -4,10 +4,12 @@ import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Plus } f
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { formatDateLong, formatTime, monthLabel, toDateKey } from "@/components/planner-data"
+import { EVENT_CATEGORIES, formatDateLong, formatTime, monthLabel, toDateKey } from "@/components/planner-data"
 import { EmptyState, SectionHeader } from "@/components/planner-shared"
-import type { CalendarEvent } from "@/components/planner-types"
+import type { CalendarEvent, EventCategory } from "@/components/planner-types"
 
 function getCalendarDays(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number)
@@ -43,8 +45,23 @@ export function PlannerCalendar({
   onDelete: (id: string) => void
 }) {
   const [visibleMonth, setVisibleMonth] = useState(today.slice(0, 7))
+  const [eventMonthFilter, setEventMonthFilter] = useState("all")
+  const [eventCategoryFilter, setEventCategoryFilter] = useState("all")
+  const year = today.slice(0, 4)
+  const eventMonths = Array.from({ length: 12 }, (_, index) => {
+    const month = String(index + 1).padStart(2, "0")
+    const label = new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(Number(year), index, 1, 12))
+    return { value: month, label }
+  })
+  const monthItems = [{ value: "all", label: "All" }, ...eventMonths]
+  const categoryItems = [{ value: "all", label: "All" }, ...EVENT_CATEGORIES.map((category) => ({ value: category, label: category }))]
   const days = getCalendarDays(visibleMonth)
   const dayEvents = events.filter((event) => event.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time))
+  const filteredEvents = events
+    .filter((event) => event.date.startsWith(`${year}-`))
+    .filter((event) => eventMonthFilter === "all" || event.date.slice(5, 7) === eventMonthFilter)
+    .filter((event) => eventCategoryFilter === "all" || (event.category ?? "Other") === eventCategoryFilter)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))
   const eventCounts = events.reduce<Record<string, number>>((counts, event) => {
     counts[event.date] = (counts[event.date] ?? 0) + 1
     return counts
@@ -169,6 +186,83 @@ export function PlannerCalendar({
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Events this year</CardTitle>
+          <CardDescription>Filter the year’s events by month and category.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-0">
+          <FieldGroup className="grid gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="event-list-month">Month</FieldLabel>
+              <Select items={monthItems} value={eventMonthFilter} onValueChange={(value) => {
+                if (typeof value === "string" && (value === "all" || eventMonths.some((month) => month.value === value))) {
+                  setEventMonthFilter(value)
+                }
+              }}>
+                <SelectTrigger id="event-list-month" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">All</SelectItem>
+                    {eventMonths.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="event-list-category">Category</FieldLabel>
+              <Select items={categoryItems} value={eventCategoryFilter} onValueChange={(value) => {
+                if (typeof value === "string" && (value === "all" || EVENT_CATEGORIES.includes(value as EventCategory))) {
+                  setEventCategoryFilter(value)
+                }
+              }}>
+                <SelectTrigger id="event-list-category" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectItem value="all">All</SelectItem>
+                    {EVENT_CATEGORIES.map((category) => (
+                      <SelectItem key={category} value={category}>{category}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
+
+          <div aria-live="polite" className="text-xs text-muted-foreground">
+            {filteredEvents.length} {filteredEvents.length === 1 ? "event" : "events"}
+          </div>
+          {filteredEvents.length ? (
+            <div className="divide-y divide-border/70">
+              {filteredEvents.map((event) => (
+                <div key={event.id} className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{event.title}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{formatDateLong(event.date)} · {event.allDay ? "All day" : formatTime(event.time)}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Badge variant="outline" className="w-fit">{eventMonths[Number(event.date.slice(5, 7)) - 1].label}</Badge>
+                    <Badge variant="secondary" className="w-fit">{event.category ?? "Other"}</Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              icon={CalendarDays}
+              title="No events match these filters"
+              description={`There are no matching events in ${year}.`}
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
