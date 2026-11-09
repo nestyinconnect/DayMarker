@@ -24,7 +24,7 @@ import { PlannerOverview } from "@/components/planner-overview"
 import { PlannerReminders } from "@/components/planner-reminders"
 import { PlannerTasks } from "@/components/planner-tasks"
 import { formatCurrency, formatDateLong } from "@/components/planner-data"
-import type { CreateKind, NewPlannerRecord, PlannerData, PlannerView } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, NewPlannerRecord, PlannerData, PlannerView } from "@/components/planner-types"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS: { id: PlannerView; label: string; icon: LucideIcon }[] = [
@@ -175,6 +175,7 @@ export function PlannerShell({ today }: { today: string }) {
   }, [])
   const [createKind, setCreateKind] = useState<CreateKind | null>(null)
   const [createDate, setCreateDate] = useState(today)
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(today)
   const pageCopy = PAGE_COPY[activeView]
 
@@ -190,8 +191,15 @@ export function PlannerShell({ today }: { today: string }) {
   const upcomingEvents = data.events.filter((event) => event.date >= today).length
 
   function openCreate(kind: CreateKind, date = today) {
+    setEditingEvent(null)
     setCreateDate(date)
     setCreateKind(kind)
+  }
+
+  function openEditEvent(event: CalendarEvent) {
+    setEditingEvent(event)
+    setCreateDate(event.date)
+    setCreateKind("event")
   }
 
   async function persistRecord(kind: string, id: string, item: unknown, operation: "upsert" | "delete") {
@@ -219,7 +227,7 @@ export function PlannerShell({ today }: { today: string }) {
         case "task": return { ...current, tasks: [record.item, ...current.tasks] }
         case "goal": return { ...current, goals: [record.item, ...current.goals] }
         case "reminder": return { ...current, reminders: [record.item, ...current.reminders] }
-        case "event": return { ...current, events: [record.item, ...current.events] }
+        case "event": return { ...current, events: [record.item, ...current.events.filter((item) => item.id !== record.item.id)] }
       }
     })
     if (record.kind === "event") setSelectedCalendarDate(record.item.date)
@@ -354,6 +362,7 @@ export function PlannerShell({ today }: { today: string }) {
               selectedDate={selectedCalendarDate}
               onSelectDate={setSelectedCalendarDate}
               onAdd={(date) => openCreate("event", date)}
+              onEdit={openEditEvent}
               onDelete={removeEvent}
             />
           ) : null}
@@ -365,12 +374,13 @@ export function PlannerShell({ today }: { today: string }) {
 
       <MobileNavigation activeView={activeView} onNavigate={setActiveView} />
       <PlannerCreateDialog
-        key={`${createKind ?? "closed"}-${createDate}`}
+        key={`${createKind ?? "closed"}-${createDate}-${editingEvent?.id ?? "new"}`}
         open={createKind !== null}
         kind={createKind}
         today={today}
         defaultDate={createDate}
-        onOpenChange={(open) => { if (!open) setCreateKind(null) }}
+        editEvent={editingEvent}
+        onOpenChange={(open) => { if (!open) { setCreateKind(null); setEditingEvent(null) } }}
         onCreate={addRecord}
       />
     </div>

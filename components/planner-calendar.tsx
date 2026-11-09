@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Plus } from "lucide-react"
+import { CalendarDays, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Pencil, Plus } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -35,6 +35,7 @@ export function PlannerCalendar({
   selectedDate,
   onSelectDate,
   onAdd,
+  onEdit,
   onDelete,
 }: {
   events: CalendarEvent[]
@@ -42,6 +43,7 @@ export function PlannerCalendar({
   selectedDate: string
   onSelectDate: (date: string) => void
   onAdd: (date: string) => void
+  onEdit: (event: CalendarEvent) => void
   onDelete: (id: string) => void
 }) {
   const [visibleMonth, setVisibleMonth] = useState(today.slice(0, 7))
@@ -163,6 +165,9 @@ export function PlannerCalendar({
                           </p>
                         </div>
                       </div>
+                      <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`Edit event: ${event.title}`} onClick={() => onEdit(event)}>
+                        <Pencil aria-hidden="true" />
+                      </Button>
                       <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" aria-label={`Remove event: ${event.title}`} onClick={() => onDelete(event.id)}>
                         <span className="sr-only">Remove event</span>
                         <Plus aria-hidden="true" className="rotate-45" />
@@ -247,9 +252,12 @@ export function PlannerCalendar({
                     <p className="truncate text-sm font-medium">{event.title}</p>
                     <p className="mt-1 text-xs text-muted-foreground">{formatDateLong(event.date)} · {event.allDay ? "All day" : formatTime(event.time)}</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="outline" className="w-fit">{eventMonths[Number(event.date.slice(5, 7)) - 1].label}</Badge>
                     <Badge variant="secondary" className="w-fit">{event.category ?? "Other"}</Badge>
+                    <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label={`Edit event: ${event.title}`} onClick={() => onEdit(event)}>
+                      <Pencil aria-hidden="true" />
+                    </Button>
                   </div>
                 </div>
               ))}

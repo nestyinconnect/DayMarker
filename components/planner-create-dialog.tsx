@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, getGoalDeadline } from "@/components/planner-data"
-import type { CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, TaskPriority } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, TaskPriority } from "@/components/planner-types"
 
 const CREATE_DETAILS: Record<CreateKind, { title: string; description: string }> = {
   expense: { title: "Add an expense", description: "Capture a purchase and keep your monthly spending in view." },
@@ -39,6 +39,7 @@ export function PlannerCreateDialog({
   kind,
   today,
   defaultDate,
+  editEvent,
   onOpenChange,
   onCreate,
 }: {
@@ -46,23 +47,27 @@ export function PlannerCreateDialog({
   kind: CreateKind | null
   today: string
   defaultDate: string
+  editEvent?: CalendarEvent | null
   onOpenChange: (open: boolean) => void
   onCreate: (record: NewPlannerRecord) => Promise<void>
 }) {
-  const [title, setTitle] = useState("")
+  const [title, setTitle] = useState(editEvent?.title ?? "")
   const [amount, setAmount] = useState("")
   const [category, setCategory] = useState<ExpenseCategory>("Groceries")
-  const [date, setDate] = useState(defaultDate)
+  const [date, setDate] = useState(editEvent?.date ?? defaultDate)
   const [priority, setPriority] = useState<TaskPriority>("normal")
   const [period, setPeriod] = useState<GoalPeriod>("month")
   const [remindAt, setRemindAt] = useState(`${defaultDate}T09:00`)
-  const [time, setTime] = useState("09:00")
-  const [eventCategory, setEventCategory] = useState<EventCategory>("Other")
-  const [allDay, setAllDay] = useState(false)
+  const [time, setTime] = useState(editEvent && !editEvent.allDay ? editEvent.time : "09:00")
+  const [eventCategory, setEventCategory] = useState<EventCategory>(editEvent?.category ?? "Other")
+  const [allDay, setAllDay] = useState(editEvent?.allDay ?? false)
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const activeKind = kind ?? "expense"
-  const details = CREATE_DETAILS[activeKind]
+  const isEditing = activeKind === "event" && Boolean(editEvent)
+  const details = isEditing
+    ? { title: "Edit event", description: "Update the name, date, time, or category of this event." }
+    : CREATE_DETAILS[activeKind]
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -72,7 +77,7 @@ export function PlannerCreateDialog({
       return
     }
 
-    const id = crypto.randomUUID()
+    const id = isEditing && editEvent ? editEvent.id : crypto.randomUUID()
     setError("")
 
     setSaving(true)
@@ -298,7 +303,7 @@ export function PlannerCreateDialog({
               {activeKind === "goal" ? <Target data-icon="inline-start" aria-hidden="true" /> : null}
               {activeKind === "reminder" ? <AlarmClock data-icon="inline-start" aria-hidden="true" /> : null}
               {activeKind === "event" ? <CalendarPlus data-icon="inline-start" aria-hidden="true" /> : null}
-              {saving ? "Saving…" : `Add ${activeKind}`}
+              {saving ? "Saving…" : isEditing ? "Save changes" : `Add ${activeKind}`}
             </Button>
           </DialogFooter>
         </form>
