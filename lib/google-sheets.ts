@@ -1,7 +1,7 @@
 import type { PlannerData } from "@/components/planner-types"
 
 const SHEET_NAME = "Records"
-const VALID_KINDS = ["expense", "task", "goal", "reminder", "event"] as const
+const VALID_KINDS = ["expense", "deposit", "task", "goal", "reminder", "event"] as const
 type RecordKind = typeof VALID_KINDS[number]
 
 type ServiceAccount = {
@@ -126,6 +126,7 @@ async function connectToSheet() {
 function getRecordCollection(data: PlannerData, kind: RecordKind) {
   const collectionByKind = {
     expense: data.expenses,
+    deposit: data.deposits,
     task: data.tasks,
     goal: data.goals,
     reminder: data.reminders,
@@ -140,7 +141,7 @@ export async function readPlannerData(): Promise<PlannerData> {
     `${sheetId}/values/${SHEET_NAME}!A2:C`,
     token,
   )
-  const data: PlannerData = { expenses: [], tasks: [], goals: [], reminders: [], events: [] }
+  const data: PlannerData = { expenses: [], deposits: [], tasks: [], goals: [], reminders: [], events: [] }
 
   for (const [kind, , payload] of result.values ?? []) {
     if (!VALID_KINDS.includes(kind as RecordKind) || !payload) continue

@@ -1,5 +1,5 @@
-export type PlannerView = "overview" | "expenses" | "tasks" | "goals" | "calendar" | "reminders"
-export type CreateKind = "expense" | "task" | "goal" | "reminder" | "event"
+export type PlannerView = "overview" | "expenses" | "deposits" | "tasks" | "goals" | "calendar" | "reminders"
+export type CreateKind = "expense" | "deposit" | "task" | "goal" | "reminder" | "event"
 export type ExpenseCategory = "Groceries" | "Dining" | "Transport" | "Home" | "Wellness" | "Other"
 export type EventCategory =
   | "Work & Office"
@@ -56,8 +56,20 @@ export interface CalendarEvent {
   allDay: boolean
 }
 
+export interface FixedDeposit {
+  id: string
+  bank: string
+  accountNumber: string
+  principal: number
+  interestRate: number
+  depositDate: string
+  maturityDate: string
+  maturityAmount: number
+}
+
 export interface PlannerData {
   expenses: Expense[]
+  deposits: FixedDeposit[]
   tasks: PlannerTask[]
   goals: Goal[]
   reminders: Reminder[]
@@ -66,6 +78,7 @@ export interface PlannerData {
 
 export type NewPlannerRecord =
   | { kind: "expense"; item: Expense }
+  | { kind: "deposit"; item: FixedDeposit }
   | { kind: "task"; item: PlannerTask }
   | { kind: "goal"; item: Goal }
   | { kind: "reminder"; item: Reminder }

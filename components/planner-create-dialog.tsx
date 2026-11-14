@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, type FormEvent } from "react"
-import { AlarmClock, CalendarPlus, CircleDollarSign, ListTodo, Target } from "lucide-react"
+import { AlarmClock, CalendarPlus, CircleDollarSign, Landmark, ListTodo, Target } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -38,6 +38,7 @@ function toggleNumber(values: number[], value: number) {
 
 const CREATE_DETAILS: Record<CreateKind, { title: string; description: string }> = {
   expense: { title: "Add an expense", description: "Capture a purchase and keep your monthly spending in view." },
+  deposit: { title: "Add a fixed deposit", description: "Record the deposit details so you know what matures and when." },
   task: { title: "Add a task", description: "Give a small next step a place on your list." },
   goal: { title: "Create a goal", description: "Choose a monthly or year-end focus and track it as you go." },
   reminder: { title: "Set reminders", description: "Pick the months and days to repeat this reminder on." },
@@ -76,6 +77,11 @@ export function PlannerCreateDialog({
   const [time, setTime] = useState(editEvent && !editEvent.allDay ? editEvent.time : "09:00")
   const [eventCategory, setEventCategory] = useState<EventCategory>(editEvent?.category ?? "Other")
   const [allDay, setAllDay] = useState(editEvent?.allDay ?? false)
+  const [accountNumber, setAccountNumber] = useState("")
+  const [principal, setPrincipal] = useState("")
+  const [interestRate, setInterestRate] = useState("")
+  const [maturityDate, setMaturityDate] = useState("")
+  const [maturityAmount, setMaturityAmount] = useState("")
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const activeKind = kind ?? "expense"
@@ -142,6 +148,46 @@ export function PlannerCreateDialog({
         })))
       }
 
+      if (activeKind === "deposit") {
+        const cleanAccount = accountNumber.trim()
+        const parsedPrincipal = Number(principal)
+        const parsedRate = Number(interestRate)
+        const parsedMaturity = Number(maturityAmount)
+        if (!cleanAccount) {
+          setError("Enter the account number.")
+          return
+        }
+        if (!Number.isFinite(parsedPrincipal) || parsedPrincipal <= 0) {
+          setError("Enter an investment amount greater than zero.")
+          return
+        }
+        if (!Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100) {
+          setError("Enter an interest rate between 0 and 100.")
+          return
+        }
+        if (!maturityDate || maturityDate <= date) {
+          setError("Maturity date must be after the deposited date.")
+          return
+        }
+        if (!Number.isFinite(parsedMaturity) || parsedMaturity < parsedPrincipal) {
+          setError("Maturity amount should be at least the invested amount.")
+          return
+        }
+        await onCreate({
+          kind: "deposit",
+          item: {
+            id,
+            bank: cleanTitle,
+            accountNumber: cleanAccount,
+            principal: Math.round(parsedPrincipal * 100) / 100,
+            interestRate: parsedRate,
+            depositDate: date,
+            maturityDate,
+            maturityAmount: Math.round(parsedMaturity * 100) / 100,
+          },
+        })
+      }
+
       if (activeKind === "event") {
         await onCreate({
           kind: "event",
@@ -168,13 +214,13 @@ export function PlannerCreateDialog({
         <form onSubmit={handleSubmit}>
           <FieldGroup className="gap-4 py-2">
             <Field>
-              <FieldLabel htmlFor="planner-title">Title</FieldLabel>
+              <FieldLabel htmlFor="planner-title">{activeKind === "deposit" ? "Bank" : "Title"}</FieldLabel>
               <Input
                 id="planner-title"
                 name="title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                placeholder={activeKind === "expense" ? "e.g. Weekly groceries" : "Give it a clear name"}
+                placeholder={activeKind === "expense" ? "e.g. Weekly groceries" : activeKind === "deposit" ? "e.g. State Bank of India" : "Give it a clear name"}
                 maxLength={120}
                 required
                 autoFocus
@@ -392,12 +438,44 @@ export function PlannerCreateDialog({
               </>
             ) : null}
 
+            {activeKind === "deposit" ? (
+              <>
+                <Field>
+                  <FieldLabel htmlFor="deposit-account">Account number</FieldLabel>
+                  <Input id="deposit-account" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} maxLength={34} autoComplete="off" required />
+                </Field>
+                <FieldGroup className="grid grid-cols-2 gap-3">
+                  <Field>
+                    <FieldLabel htmlFor="deposit-principal">Investment (₹)</FieldLabel>
+                    <Input id="deposit-principal" type="number" inputMode="decimal" min="0.01" step="0.01" value={principal} onChange={(event) => setPrincipal(event.target.value)} required />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="deposit-rate">Interest rate (% p.a.)</FieldLabel>
+                    <Input id="deposit-rate" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={interestRate} onChange={(event) => setInterestRate(event.target.value)} required />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="deposit-date">Deposited date</FieldLabel>
+                    <Input id="deposit-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} required />
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="deposit-maturity-date">Maturity date</FieldLabel>
+                    <Input id="deposit-maturity-date" type="date" value={maturityDate} min={date} onChange={(event) => setMaturityDate(event.target.value)} required />
+                  </Field>
+                </FieldGroup>
+                <Field>
+                  <FieldLabel htmlFor="deposit-maturity-amount">Maturity amount (₹)</FieldLabel>
+                  <Input id="deposit-maturity-amount" type="number" inputMode="decimal" min="0.01" step="0.01" value={maturityAmount} onChange={(event) => setMaturityAmount(event.target.value)} required />
+                </Field>
+              </>
+            ) : null}
+
             {error && (activeKind !== "expense" || error === "Add a title to continue.") ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
           </FieldGroup>
           <DialogFooter className="mt-5">
             <Button type="button" variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving}>
               {activeKind === "expense" ? <CircleDollarSign data-icon="inline-start" aria-hidden="true" /> : null}
+              {activeKind === "deposit" ? <Landmark data-icon="inline-start" aria-hidden="true" /> : null}
               {activeKind === "task" ? <ListTodo data-icon="inline-start" aria-hidden="true" /> : null}
               {activeKind === "goal" ? <Target data-icon="inline-start" aria-hidden="true" /> : null}
               {activeKind === "reminder" ? <AlarmClock data-icon="inline-start" aria-hidden="true" /> : null}

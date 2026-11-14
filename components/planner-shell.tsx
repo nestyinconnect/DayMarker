@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import {
   Bell,
   CalendarDays,
+  Landmark,
   LayoutDashboard,
   ListTodo,
   Sparkles,
@@ -18,6 +19,7 @@ import { LogoutButton } from "@/components/logout-button"
 import { MetricCard } from "@/components/planner-shared"
 import { PlannerCalendar } from "@/components/planner-calendar"
 import { PlannerCreateDialog } from "@/components/planner-create-dialog"
+import { PlannerDeposits } from "@/components/planner-deposits"
 import { PlannerExpenses } from "@/components/planner-expenses"
 import { PlannerGoals } from "@/components/planner-goals"
 import { PlannerOverview } from "@/components/planner-overview"
@@ -30,6 +32,7 @@ import { cn } from "@/lib/utils"
 const NAV_ITEMS: { id: PlannerView; label: string; icon: LucideIcon }[] = [
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "expenses", label: "Expenses", icon: WalletCards },
+  { id: "deposits", label: "Deposits", icon: Landmark },
   { id: "tasks", label: "Tasks", icon: ListTodo },
   { id: "goals", label: "Goals", icon: Target },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
@@ -44,6 +47,10 @@ const PAGE_COPY: Record<PlannerView, { title: string; description: string }> = {
   expenses: {
     title: "Where your money goes.",
     description: "Keep everyday spending visible, without making it complicated.",
+  },
+  deposits: {
+    title: "Savings that grow.",
+    description: "Keep every fixed deposit, its rate, and its maturity in one place.",
   },
   tasks: {
     title: "One thing at a time.",
@@ -146,7 +153,7 @@ function MobileNavigation({
 
 export function PlannerShell({ today }: { today: string }) {
   const [activeView, setActiveView] = useState<PlannerView>("overview")
-  const [data, setData] = useState<PlannerData>({ expenses: [], tasks: [], goals: [], reminders: [], events: [] })
+  const [data, setData] = useState<PlannerData>({ expenses: [], deposits: [], tasks: [], goals: [], reminders: [], events: [] })
   const [clientReady, setClientReady] = useState(false)
   const [syncStatus, setSyncStatus] = useState<"loading" | "ready" | "error">("loading")
   const [syncMessage, setSyncMessage] = useState("")
@@ -237,6 +244,7 @@ export function PlannerShell({ today }: { today: string }) {
     setData((current) => {
       switch (record.kind) {
         case "expense": return { ...current, expenses: [record.item, ...current.expenses] }
+        case "deposit": return { ...current, deposits: [record.item, ...current.deposits] }
         case "task": return { ...current, tasks: [record.item, ...current.tasks] }
         case "goal": return { ...current, goals: [record.item, ...current.goals] }
         case "reminder": return { ...current, reminders: [record.item, ...current.reminders] }
@@ -276,6 +284,12 @@ export function PlannerShell({ today }: { today: string }) {
   function removeExpense(id: string) {
     void persistRecord("expense", id, undefined, "delete")
       .then(() => setData((current) => ({ ...current, expenses: current.expenses.filter((item) => item.id !== id) })))
+      .catch(reportSyncError)
+  }
+
+  function removeDeposit(id: string) {
+    void persistRecord("deposit", id, undefined, "delete")
+      .then(() => setData((current) => ({ ...current, deposits: current.deposits.filter((item) => item.id !== id) })))
       .catch(reportSyncError)
   }
 
@@ -357,7 +371,7 @@ export function PlannerShell({ today }: { today: string }) {
           ) : null}
 
           {activeView === "overview" ? (
-            <PlannerOverview data={data} today={today} onNavigate={setActiveView} onOpenCreate={openCreate} onToggleTask={toggleTask} />
+            <PlannerOverview data={data} today={today} onNavigate={setActiveView} onOpenCreate={openCreate} onEditEvent={openEditEvent} onToggleTask={toggleTask} />
           ) : null}
           {activeView === "expenses" ? (
             <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onDelete={removeExpense} />
@@ -381,6 +395,9 @@ export function PlannerShell({ today }: { today: string }) {
           ) : null}
           {activeView === "reminders" ? (
             <PlannerReminders reminders={data.reminders} today={today} onAdd={() => openCreate("reminder")} onToggle={toggleReminder} onDelete={removeReminder} />
+          ) : null}
+          {activeView === "deposits" ? (
+            <PlannerDeposits deposits={data.deposits} today={today} onAdd={() => openCreate("deposit")} onDelete={removeDeposit} />
           ) : null}
         </main>
       </div>

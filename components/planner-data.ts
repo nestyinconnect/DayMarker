@@ -138,5 +138,6 @@ export function createDemoData(today: string): PlannerData {
       { id: "event-3", title: "Dinner with Sam", category: "Family & Friends", date: date(3), time: "18:00", allDay: false },
       { id: "event-4", title: "Payday", category: "Other", date: date(6), time: "All day", allDay: true },
     ],
+    deposits: [],
   }
 }

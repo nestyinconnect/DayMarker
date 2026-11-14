@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, Clock3, Sparkles, Target } from "lucide-react"
+import { ArrowRight, CalendarDays, Pencil, Sparkles, Target } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -6,19 +6,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { formatCurrency, formatDateShort, formatTime, monthLabel } from "@/components/planner-data"
 import { EmptyState, ExpenseRow, TaskRow } from "@/components/planner-shared"
-import type { CreateKind, PlannerData, PlannerView } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, PlannerData, PlannerView } from "@/components/planner-types"
 
 export function PlannerOverview({
   data,
   today,
   onNavigate,
   onOpenCreate,
+  onEditEvent,
   onToggleTask,
 }: {
   data: PlannerData
   today: string
   onNavigate: (view: PlannerView) => void
   onOpenCreate: (kind: CreateKind, date?: string) => void
+  onEditEvent: (event: CalendarEvent) => void
   onToggleTask: (id: string, completed: boolean) => void
 }) {
   const monthKey = today.slice(0, 7)
@@ -178,7 +180,9 @@ export function PlannerOverview({
                     </p>
                   </div>
                 </div>
-                <Clock3 aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                <Button type="button" variant="ghost" size="icon-sm" className="shrink-0 text-muted-foreground" aria-label={`Edit event: ${event.title}`} onClick={() => onEditEvent(event)}>
+                  <Pencil aria-hidden="true" />
+                </Button>
               </div>
             )) : (
               <EmptyState
