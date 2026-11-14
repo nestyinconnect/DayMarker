@@ -26,6 +26,7 @@ export interface Expense {
 export interface PlannerTask {
   id: string
   title: string
+  category?: EventCategory
   dueDate: string
   priority: TaskPriority
   completed: boolean

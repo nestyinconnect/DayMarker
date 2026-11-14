@@ -147,6 +147,7 @@ export function TaskRow({
         </label>
         <p className="mt-1 text-xs text-muted-foreground">{formatRelativeDate(task.dueDate, today)}</p>
       </div>
+      <Badge variant="outline" className="hidden sm:inline-flex">{task.category ?? "Other"}</Badge>
       <Badge variant={priorityVariant} className="capitalize">{task.priority}</Badge>
       {onDelete ? (
         <Button

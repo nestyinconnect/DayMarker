@@ -69,6 +69,7 @@ export function PlannerCreateDialog({
   const [category, setCategory] = useState<ExpenseCategory>("Groceries")
   const [date, setDate] = useState(editEvent?.date ?? defaultDate)
   const [priority, setPriority] = useState<TaskPriority>("normal")
+  const [taskCategory, setTaskCategory] = useState<EventCategory>("Other")
   const [period, setPeriod] = useState<GoalPeriod>("month")
   const [reminderCategory, setReminderCategory] = useState<EventCategory>("Other")
   const [reminderYear, setReminderYear] = useState(defaultDate.slice(0, 4))
@@ -123,7 +124,7 @@ export function PlannerCreateDialog({
       if (activeKind === "task") {
         await onCreate({
           kind: "task",
-          item: { id, title: cleanTitle, dueDate: date, priority, completed: false },
+          item: { id, title: cleanTitle, category: taskCategory, dueDate: date, priority, completed: false },
         })
       }
 
@@ -273,6 +274,22 @@ export function PlannerCreateDialog({
             ) : null}
 
             {activeKind === "task" ? (
+              <>
+              <Field>
+                <FieldLabel htmlFor="task-category">Category</FieldLabel>
+                <Select value={taskCategory} onValueChange={(value) => {
+                  if (EVENT_CATEGORIES.includes(value as EventCategory)) setTaskCategory(value as EventCategory)
+                }}>
+                  <SelectTrigger id="task-category" className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      {EVENT_CATEGORIES.map((option) => (
+                        <SelectItem key={option} value={option}>{option}</SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </Field>
               <FieldGroup className="grid grid-cols-2 gap-3">
                 <Field>
                   <FieldLabel htmlFor="task-due-date">Due date</FieldLabel>
@@ -294,6 +311,7 @@ export function PlannerCreateDialog({
                   </Select>
                 </Field>
               </FieldGroup>
+              </>
             ) : null}
 
             {activeKind === "goal" ? (

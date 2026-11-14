@@ -4,12 +4,28 @@ import { ListTodo, Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { EVENT_CATEGORIES } from "@/components/planner-data"
 import { EmptyState, SectionHeader, TaskRow } from "@/components/planner-shared"
-import type { PlannerTask } from "@/components/planner-types"
+import type { EventCategory, PlannerTask } from "@/components/planner-types"
 
 type TaskFilter = "all" | "open" | "done"
+
+const MONTH_ITEMS = [
+  { value: "all", label: "All" },
+  ...Array.from({ length: 12 }, (_, index) => ({
+    value: String(index + 1).padStart(2, "0"),
+    label: new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(2000, index, 1, 12)),
+  })),
+]
+const CATEGORY_ITEMS = [{ value: "all", label: "All" }, ...EVENT_CATEGORIES.map((category) => ({ value: category, label: category }))]
+const STATUS_ITEMS = [
+  { value: "all", label: "All tasks" },
+  { value: "open", label: "Open only" },
+  { value: "done", label: "Completed" },
+]
 
 export function PlannerTasks({
   tasks,
@@ -25,10 +41,15 @@ export function PlannerTasks({
   onDelete: (id: string) => void
 }) {
   const [filter, setFilter] = useState<TaskFilter>("all")
+  const [monthFilter, setMonthFilter] = useState("all")
+  const [categoryFilter, setCategoryFilter] = useState("all")
+  const narrowed = monthFilter !== "all" || categoryFilter !== "all"
   const completedCount = tasks.filter((task) => task.completed).length
   const openCount = tasks.length - completedCount
   const visibleTasks = tasks
     .filter((task) => filter === "all" || (filter === "open" ? !task.completed : task.completed))
+    .filter((task) => monthFilter === "all" || task.dueDate.slice(5, 7) === monthFilter)
+    .filter((task) => categoryFilter === "all" || (task.category ?? "Other") === categoryFilter)
     .sort((a, b) => Number(a.completed) - Number(b.completed) || a.dueDate.localeCompare(b.dueDate))
 
   return (
@@ -45,7 +66,7 @@ export function PlannerTasks({
             <CardTitle>Tasks</CardTitle>
             <CardDescription className="mt-1">{openCount} open · {completedCount} completed</CardDescription>
           </div>
-          <Select value={filter} onValueChange={(value) => {
+          <Select items={STATUS_ITEMS} value={filter} onValueChange={(value) => {
             if (value === "all" || value === "open" || value === "done") setFilter(value)
           }}>
             <SelectTrigger className="w-full sm:w-40" aria-label="Filter tasks">
@@ -61,6 +82,38 @@ export function PlannerTasks({
           </Select>
         </CardHeader>
         <CardContent className="pt-0">
+          <FieldGroup className="mb-4 grid gap-3 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor="task-list-month">Month</FieldLabel>
+              <Select items={MONTH_ITEMS} value={monthFilter} onValueChange={(value) => {
+                if (typeof value === "string" && MONTH_ITEMS.some((month) => month.value === value)) setMonthFilter(value)
+              }}>
+                <SelectTrigger id="task-list-month" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {MONTH_ITEMS.map((month) => (
+                      <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="task-list-category">Category</FieldLabel>
+              <Select items={CATEGORY_ITEMS} value={categoryFilter} onValueChange={(value) => {
+                if (typeof value === "string" && (value === "all" || EVENT_CATEGORIES.includes(value as EventCategory))) setCategoryFilter(value)
+              }}>
+                <SelectTrigger id="task-list-category" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {CATEGORY_ITEMS.map((category) => (
+                      <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+          </FieldGroup>
           {tasks.length ? (
             <>
               <div className="mb-5 flex items-center justify-between gap-4 rounded-xl bg-muted/50 p-4">
@@ -83,6 +136,12 @@ export function PlannerTasks({
                     <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onDelete={onDelete} />
                   ))}
                 </div>
+              ) : narrowed ? (
+                <EmptyState
+                  icon={ListTodo}
+                  title="No tasks match these filters"
+                  description="Try a different month or category."
+                />
               ) : (
                 <EmptyState
                   icon={ListTodo}
