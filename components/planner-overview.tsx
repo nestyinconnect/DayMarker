@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, Pencil, Sparkles, Target } from "lucide-react"
+import { ArrowRight, CalendarDays, Clock3, Pencil, Sparkles, Target } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
