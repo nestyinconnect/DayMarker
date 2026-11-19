@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Receipt, Trash2, type LucideIcon } from "lucide-react"
+import { Pencil, Receipt, Repeat, Trash2, type LucideIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -120,11 +120,13 @@ export function TaskRow({
   task,
   today,
   onToggle,
+  onEdit,
   onDelete,
 }: {
   task: PlannerTask
   today: string
   onToggle: (id: string, completed: boolean) => void
+  onEdit?: (task: PlannerTask) => void
   onDelete?: (id: string) => void
 }) {
   const inputId = `task-${task.id}`
@@ -147,8 +149,23 @@ export function TaskRow({
         </label>
         <p className="mt-1 text-xs text-muted-foreground">{formatRelativeDate(task.dueDate, today)}</p>
       </div>
+      {task.recurrence === "monthly" ? (
+        <Badge variant="outline" className="gap-1"><Repeat aria-hidden="true" className="size-3" />Monthly</Badge>
+      ) : null}
       <Badge variant="outline" className="hidden sm:inline-flex">{task.category ?? "Other"}</Badge>
       <Badge variant={priorityVariant} className="capitalize">{task.priority}</Badge>
+      {onEdit ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground"
+          aria-label={`Edit ${task.title}`}
+          onClick={() => onEdit(task)}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+      ) : null}
       {onDelete ? (
         <Button
           type="button"

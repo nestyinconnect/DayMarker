@@ -4,10 +4,13 @@ import { useEffect, useState } from "react"
 import {
   Bell,
   CalendarDays,
+  FileSpreadsheet,
   Landmark,
+  MessageSquareText,
   LayoutDashboard,
   ListTodo,
   Sparkles,
+  Tags,
   Target,
   WalletCards,
   type LucideIcon,
@@ -18,15 +21,18 @@ import { Button } from "@/components/ui/button"
 import { LogoutButton } from "@/components/logout-button"
 import { MetricCard } from "@/components/planner-shared"
 import { PlannerCalendar } from "@/components/planner-calendar"
+import { PlannerCategoriesDialog, type CategoryGroup } from "@/components/planner-categories-dialog"
 import { PlannerCreateDialog } from "@/components/planner-create-dialog"
 import { PlannerDeposits } from "@/components/planner-deposits"
 import { PlannerExpenses } from "@/components/planner-expenses"
+import { PlannerFeedback } from "@/components/planner-feedback"
 import { PlannerGoals } from "@/components/planner-goals"
 import { PlannerOverview } from "@/components/planner-overview"
 import { PlannerReminders } from "@/components/planner-reminders"
+import { PlannerSheetInfo } from "@/components/planner-sheet-info"
 import { PlannerTasks } from "@/components/planner-tasks"
-import { formatCurrency, formatDateLong } from "@/components/planner-data"
-import type { CalendarEvent, CreateKind, NewPlannerRecord, PlannerData, PlannerView, Reminder } from "@/components/planner-types"
+import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, OTHER_CATEGORY, formatCurrency, formatDateLong, nextMonthlyDate, normalizeCategories } from "@/components/planner-data"
+import type { CalendarEvent, CreateKind, FeedbackItem, NewPlannerRecord, PlannerData, PlannerTask, PlannerView, Reminder } from "@/components/planner-types"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS: { id: PlannerView; label: string; icon: LucideIcon }[] = [
@@ -37,6 +43,8 @@ const NAV_ITEMS: { id: PlannerView; label: string; icon: LucideIcon }[] = [
   { id: "goals", label: "Goals", icon: Target },
   { id: "calendar", label: "Calendar", icon: CalendarDays },
   { id: "reminders", label: "Reminders", icon: Bell },
+  { id: "feedback", label: "Feedback", icon: MessageSquareText },
+  { id: "sheet", label: "Sheet", icon: FileSpreadsheet },
 ]
 
 const PAGE_COPY: Record<PlannerView, { title: string; description: string }> = {
@@ -67,6 +75,14 @@ const PAGE_COPY: Record<PlannerView, { title: string; description: string }> = {
   reminders: {
     title: "Keep the small things in view.",
     description: "Set a gentle nudge for the details you don’t want to forget.",
+  },
+  feedback: {
+    title: "Ideas, bugs, and feedback.",
+    description: "Track what to improve in DayMarker from open to resolved.",
+  },
+  sheet: {
+    title: "Your data source.",
+    description: "See which Google Sheet is connected and which account it’s shared with.",
   },
 }
 
@@ -153,7 +169,7 @@ function MobileNavigation({
 
 export function PlannerShell({ today }: { today: string }) {
   const [activeView, setActiveView] = useState<PlannerView>("overview")
-  const [data, setData] = useState<PlannerData>({ expenses: [], deposits: [], tasks: [], goals: [], reminders: [], events: [] })
+  const [data, setData] = useState<PlannerData>({ expenses: [], deposits: [], tasks: [], goals: [], reminders: [], events: [], feedback: [] })
   const [clientReady, setClientReady] = useState(false)
   const [syncStatus, setSyncStatus] = useState<"loading" | "ready" | "error">("loading")
   const [syncMessage, setSyncMessage] = useState("")
@@ -183,8 +199,17 @@ export function PlannerShell({ today }: { today: string }) {
   const [createKind, setCreateKind] = useState<CreateKind | null>(null)
   const [createDate, setCreateDate] = useState(today)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [editingTask, setEditingTask] = useState<PlannerTask | null>(null)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(today)
   const pageCopy = PAGE_COPY[activeView]
+  const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const categories = normalizeCategories(data.categories ?? EVENT_CATEGORIES)
+  const expenseCategories = normalizeCategories(data.expenseCategories ?? EXPENSE_CATEGORIES)
+  const countByCategory = (items: { category?: string }[]) => items.reduce<Record<string, number>>((counts, item) => {
+    const name = item.category ?? OTHER_CATEGORY
+    counts[name] = (counts[name] ?? 0) + 1
+    return counts
+  }, {})
 
   const monthKey = today.slice(0, 7)
   const monthExpenses = data.expenses.filter((expense) => expense.date.startsWith(monthKey))
@@ -199,14 +224,23 @@ export function PlannerShell({ today }: { today: string }) {
 
   function openCreate(kind: CreateKind, date = today) {
     setEditingEvent(null)
+    setEditingTask(null)
     setCreateDate(date)
     setCreateKind(kind)
   }
 
   function openEditEvent(event: CalendarEvent) {
+    setEditingTask(null)
     setEditingEvent(event)
     setCreateDate(event.date)
     setCreateKind("event")
+  }
+
+  function openEditTask(task: PlannerTask) {
+    setEditingEvent(null)
+    setEditingTask(task)
+    setCreateDate(task.dueDate)
+    setCreateKind("task")
   }
 
   async function persistRecord(kind: string, id: string, item: unknown, operation: "upsert" | "delete") {
@@ -219,6 +253,44 @@ export function PlannerShell({ today }: { today: string }) {
     if (!response.ok) throw new Error(result.error || "Unable to save to Google Sheets.")
     setSyncStatus("ready")
     setSyncMessage("")
+  }
+
+  async function updateCategories(scope: "general" | "expense", nextCategories: string[], reassign?: { from: string; to: string }) {
+    const names = normalizeCategories(nextCategories)
+    const retag = <T extends { id: string; category?: string }>(items: T[]) => reassign
+      ? items.filter((item) => (item.category ?? OTHER_CATEGORY) === reassign.from).map((item) => ({ ...item, category: reassign.to }))
+      : []
+    const isGeneral = scope === "general"
+    const tasks = isGeneral ? retag(data.tasks) : []
+    const events = isGeneral ? retag(data.events) : []
+    const reminders = isGeneral ? retag(data.reminders) : []
+    const expenses = isGeneral ? [] : retag(data.expenses)
+    const settingsId = isGeneral ? "categories" : "expenseCategories"
+    const records = [
+      { kind: "settings", id: settingsId, item: { id: settingsId, names } },
+      ...tasks.map((item) => ({ kind: "task", id: item.id, item })),
+      ...events.map((item) => ({ kind: "event", id: item.id, item })),
+      ...reminders.map((item) => ({ kind: "reminder", id: item.id, item })),
+      ...expenses.map((item) => ({ kind: "expense", id: item.id, item })),
+    ]
+    const response = await fetch("/api/planner", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operation: "upsertMany", records }),
+    })
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || "Unable to save categories.")
+    setSyncStatus("ready")
+    setSyncMessage("")
+    const replace = <T extends { id: string }>(list: T[], updated: T[]) => list.map((item) => updated.find((next) => next.id === item.id) ?? item)
+    setData((current) => ({
+      ...current,
+      ...(isGeneral ? { categories: names } : { expenseCategories: names }),
+      tasks: replace(current.tasks, tasks),
+      events: replace(current.events, events),
+      reminders: replace(current.reminders, reminders),
+      expenses: replace(current.expenses, expenses),
+    }))
   }
 
   function reportSyncError(error: unknown) {
@@ -245,7 +317,7 @@ export function PlannerShell({ today }: { today: string }) {
       switch (record.kind) {
         case "expense": return { ...current, expenses: [record.item, ...current.expenses] }
         case "deposit": return { ...current, deposits: [record.item, ...current.deposits] }
-        case "task": return { ...current, tasks: [record.item, ...current.tasks] }
+        case "task": return { ...current, tasks: [record.item, ...current.tasks.filter((item) => item.id !== record.item.id)] }
         case "goal": return { ...current, goals: [record.item, ...current.goals] }
         case "reminder": return { ...current, reminders: [record.item, ...current.reminders] }
         case "event": return { ...current, events: [record.item, ...current.events.filter((item) => item.id !== record.item.id)] }
@@ -258,8 +330,17 @@ export function PlannerShell({ today }: { today: string }) {
     const task = data.tasks.find((item) => item.id === id)
     if (!task) return
     const updatedTask = { ...task, completed }
+    const seriesId = task.seriesId ?? task.id
+    const nextDueDate = task.recurrence === "monthly" ? nextMonthlyDate(task.dueDate, task.repeatDay ?? Number(task.dueDate.slice(8, 10))) : null
+    const nextTask = completed && nextDueDate && !data.tasks.some((item) => (item.seriesId ?? item.id) === seriesId && item.dueDate === nextDueDate)
+      ? { ...task, id: crypto.randomUUID(), seriesId, dueDate: nextDueDate, completed: false }
+      : null
     void persistRecord("task", id, updatedTask, "upsert")
-      .then(() => setData((current) => ({ ...current, tasks: current.tasks.map((item) => item.id === id ? updatedTask : item) })))
+      .then(() => nextTask ? persistRecord("task", nextTask.id, nextTask, "upsert") : undefined)
+      .then(() => setData((current) => ({
+        ...current,
+        tasks: [...(nextTask ? [nextTask] : []), ...current.tasks.map((item) => item.id === id ? updatedTask : item)],
+      })))
       .catch(reportSyncError)
   }
 
@@ -284,6 +365,17 @@ export function PlannerShell({ today }: { today: string }) {
   function removeExpense(id: string) {
     void persistRecord("expense", id, undefined, "delete")
       .then(() => setData((current) => ({ ...current, expenses: current.expenses.filter((item) => item.id !== id) })))
+      .catch(reportSyncError)
+  }
+
+  async function saveFeedback(item: FeedbackItem) {
+    await persistRecord("feedback", item.id, item, "upsert")
+    setData((current) => ({ ...current, feedback: [item, ...current.feedback.filter((existing) => existing.id !== item.id)] }))
+  }
+
+  function removeFeedback(id: string) {
+    void persistRecord("feedback", id, undefined, "delete")
+      .then(() => setData((current) => ({ ...current, feedback: current.feedback.filter((item) => item.id !== id) })))
       .catch(reportSyncError)
   }
 
@@ -340,6 +432,10 @@ export function PlannerShell({ today }: { today: string }) {
               <Badge variant={syncStatus === "ready" ? "outline" : "secondary"} className="hidden sm:inline-flex">
                 {syncStatus === "loading" ? "Connecting to Sheets" : syncStatus === "ready" ? "Google Sheets connected" : "Sheets disconnected"}
               </Badge>
+              <Button variant="outline" className="h-10 rounded-full px-3 sm:px-4" aria-label="Manage categories" onClick={() => setCategoriesOpen(true)}>
+                <Tags data-icon="inline-start" aria-hidden="true" />
+                <span className="hidden sm:inline">Categories</span>
+              </Button>
               <Button className="h-10 rounded-full px-4 shadow-sm" onClick={() => openCreate("event", selectedCalendarDate)}>
                 <CalendarDays data-icon="inline-start" aria-hidden="true" />
                 Add event
@@ -377,7 +473,7 @@ export function PlannerShell({ today }: { today: string }) {
             <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onDelete={removeExpense} />
           ) : null}
           {activeView === "tasks" ? (
-            <PlannerTasks tasks={data.tasks} today={today} onAdd={() => openCreate("task")} onToggle={toggleTask} onDelete={removeTask} />
+            <PlannerTasks tasks={data.tasks} categories={categories} today={today} onAdd={() => openCreate("task")} onEdit={openEditTask} onToggle={toggleTask} onDelete={removeTask} />
           ) : null}
           {activeView === "goals" ? (
             <PlannerGoals goals={data.goals} onAdd={() => openCreate("goal")} onAdvance={advanceGoal} onDelete={removeGoal} />
@@ -385,6 +481,7 @@ export function PlannerShell({ today }: { today: string }) {
           {activeView === "calendar" ? (
             <PlannerCalendar
               events={data.events}
+              categories={categories}
               today={today}
               selectedDate={selectedCalendarDate}
               onSelectDate={setSelectedCalendarDate}
@@ -394,25 +491,58 @@ export function PlannerShell({ today }: { today: string }) {
             />
           ) : null}
           {activeView === "reminders" ? (
-            <PlannerReminders reminders={data.reminders} today={today} onAdd={() => openCreate("reminder")} onToggle={toggleReminder} onDelete={removeReminder} />
+            <PlannerReminders reminders={data.reminders} categories={categories} today={today} onAdd={() => openCreate("reminder")} onToggle={toggleReminder} onDelete={removeReminder} />
           ) : null}
           {activeView === "deposits" ? (
             <PlannerDeposits deposits={data.deposits} today={today} onAdd={() => openCreate("deposit")} onDelete={removeDeposit} />
           ) : null}
+          {activeView === "feedback" ? (
+            <PlannerFeedback items={data.feedback} today={today} onSave={saveFeedback} onDelete={removeFeedback} />
+          ) : null}
+          {activeView === "sheet" ? <PlannerSheetInfo data={data} /> : null}
         </main>
       </div>
 
       <MobileNavigation activeView={activeView} onNavigate={setActiveView} />
       <PlannerCreateDialog
-        key={`${createKind ?? "closed"}-${createDate}-${editingEvent?.id ?? "new"}`}
+        key={`${createKind ?? "closed"}-${createDate}-${editingEvent?.id ?? editingTask?.id ?? "new"}`}
         open={createKind !== null}
         kind={createKind}
+        categories={categories}
+        expenseCategories={expenseCategories}
         today={today}
         defaultDate={createDate}
         editEvent={editingEvent}
-        onOpenChange={(open) => { if (!open) { setCreateKind(null); setEditingEvent(null) } }}
+        editTask={editingTask}
+        onOpenChange={(open) => { if (!open) { setCreateKind(null); setEditingEvent(null); setEditingTask(null) } }}
         onCreate={addRecord}
         onCreateReminders={addReminders}
+      />
+      <PlannerCategoriesDialog
+        open={categoriesOpen}
+        onOpenChange={setCategoriesOpen}
+        groups={[
+          {
+            id: "general",
+            label: "Tasks & calendar",
+            description: "Used by tasks, calendar events, and reminders.",
+            categories,
+            usage: countByCategory([...data.tasks, ...data.events, ...data.reminders]),
+            onAdd: (name) => updateCategories("general", [...categories, name]),
+            onRename: (from, to) => updateCategories("general", categories.map((name) => name === from ? to : name), { from, to }),
+            onDelete: (name) => updateCategories("general", categories.filter((category) => category !== name), { from: name, to: OTHER_CATEGORY }),
+          },
+          {
+            id: "expense",
+            label: "Expenses",
+            description: "Used by expenses.",
+            categories: expenseCategories,
+            usage: countByCategory(data.expenses),
+            onAdd: (name) => updateCategories("expense", [...expenseCategories, name]),
+            onRename: (from, to) => updateCategories("expense", expenseCategories.map((name) => name === from ? to : name), { from, to }),
+            onDelete: (name) => updateCategories("expense", expenseCategories.filter((category) => category !== name), { from: name, to: OTHER_CATEGORY }),
+          },
+        ] satisfies CategoryGroup[]}
       />
     </div>
   )

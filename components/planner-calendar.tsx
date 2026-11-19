@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { EVENT_CATEGORIES, formatDateLong, formatTime, monthLabel, toDateKey } from "@/components/planner-data"
+import { formatDateLong, formatTime, monthLabel, toDateKey } from "@/components/planner-data"
 import { EmptyState, SectionHeader } from "@/components/planner-shared"
-import type { CalendarEvent, EventCategory } from "@/components/planner-types"
+import type { CalendarEvent } from "@/components/planner-types"
 
 function getCalendarDays(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number)
@@ -31,6 +31,7 @@ const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 export function PlannerCalendar({
   events,
+  categories,
   today,
   selectedDate,
   onSelectDate,
@@ -39,6 +40,7 @@ export function PlannerCalendar({
   onDelete,
 }: {
   events: CalendarEvent[]
+  categories: string[]
   today: string
   selectedDate: string
   onSelectDate: (date: string) => void
@@ -56,7 +58,7 @@ export function PlannerCalendar({
     return { value: month, label }
   })
   const monthItems = [{ value: "all", label: "All" }, ...eventMonths]
-  const categoryItems = [{ value: "all", label: "All" }, ...EVENT_CATEGORIES.map((category) => ({ value: category, label: category }))]
+  const categoryItems = [{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]
   const days = getCalendarDays(visibleMonth)
   const dayEvents = events.filter((event) => event.date === selectedDate).sort((a, b) => a.time.localeCompare(b.time))
   const filteredEvents = events
@@ -222,7 +224,7 @@ export function PlannerCalendar({
             <Field>
               <FieldLabel htmlFor="event-list-category">Category</FieldLabel>
               <Select items={categoryItems} value={eventCategoryFilter} onValueChange={(value) => {
-                if (typeof value === "string" && (value === "all" || EVENT_CATEGORIES.includes(value as EventCategory))) {
+                if (typeof value === "string" && (value === "all" || categories.includes(value))) {
                   setEventCategoryFilter(value)
                 }
               }}>
@@ -232,7 +234,7 @@ export function PlannerCalendar({
                 <SelectContent>
                   <SelectGroup>
                     <SelectItem value="all">All</SelectItem>
-                    {EVENT_CATEGORIES.map((category) => (
+                    {categories.map((category) => (
                       <SelectItem key={category} value={category}>{category}</SelectItem>
                     ))}
                   </SelectGroup>

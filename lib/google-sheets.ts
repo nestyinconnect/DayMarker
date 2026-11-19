@@ -1,7 +1,7 @@
 import type { PlannerData } from "@/components/planner-types"
 
 const SHEET_NAME = "Records"
-const VALID_KINDS = ["expense", "deposit", "task", "goal", "reminder", "event"] as const
+const VALID_KINDS = ["expense", "deposit", "task", "goal", "reminder", "event", "feedback", "settings"] as const
 type RecordKind = typeof VALID_KINDS[number]
 
 type ServiceAccount = {
@@ -22,13 +22,16 @@ function decodePem(value: string) {
   return Uint8Array.from(binary, (character) => character.charCodeAt(0))
 }
 
-async function getAccessToken(account: ServiceAccount) {
+const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets"
+const DRIVE_METADATA_SCOPE = "https://www.googleapis.com/auth/drive.metadata.readonly"
+
+async function getAccessToken(account: ServiceAccount, scope = SHEETS_SCOPE) {
   const issuedAt = Math.floor(Date.now() / 1000)
   const unsignedToken = [
     encodeBase64Url(JSON.stringify({ alg: "RS256", typ: "JWT" })),
     encodeBase64Url(JSON.stringify({
       iss: account.client_email,
-      scope: "https://www.googleapis.com/auth/spreadsheets",
+      scope,
       aud: "https://oauth2.googleapis.com/token",
       iat: issuedAt,
       exp: issuedAt + 3600,
@@ -123,7 +126,7 @@ async function connectToSheet() {
   return { sheetId: encodedId, sheetTabId: recordsSheetId, token }
 }
 
-function getRecordCollection(data: PlannerData, kind: RecordKind) {
+function getRecordCollection(data: PlannerData, kind: Exclude<RecordKind, "settings">) {
   const collectionByKind = {
     expense: data.expenses,
     deposit: data.deposits,
@@ -131,6 +134,7 @@ function getRecordCollection(data: PlannerData, kind: RecordKind) {
     goal: data.goals,
     reminder: data.reminders,
     event: data.events,
+    feedback: data.feedback,
   }
   return collectionByKind[kind]
 }
@@ -141,14 +145,20 @@ export async function readPlannerData(): Promise<PlannerData> {
     `${sheetId}/values/${SHEET_NAME}!A2:C`,
     token,
   )
-  const data: PlannerData = { expenses: [], deposits: [], tasks: [], goals: [], reminders: [], events: [] }
+  const data: PlannerData = { expenses: [], deposits: [], tasks: [], goals: [], reminders: [], events: [], feedback: [] }
 
   for (const [kind, , payload] of result.values ?? []) {
     if (!VALID_KINDS.includes(kind as RecordKind) || !payload) continue
     try {
-      const item = JSON.parse(payload) as { id?: string }
+      const item = JSON.parse(payload) as { id?: string; names?: unknown }
       if (!item.id) continue
-      getRecordCollection(data, kind as RecordKind).push(item as never)
+      if (kind === "settings") {
+        const names = Array.isArray(item.names) && item.names.every((name) => typeof name === "string") ? item.names : null
+        if (names && item.id === "categories") data.categories = names
+        if (names && item.id === "expenseCategories") data.expenseCategories = names
+        continue
+      }
+      getRecordCollection(data, kind as Exclude<RecordKind, "settings">).push(item as never)
     } catch {
       console.warn("Skipping malformed planner row")
     }
@@ -209,6 +219,97 @@ export async function appendPlannerRecords(kind: RecordKind, items: { id: string
     method: "POST",
     body: JSON.stringify({ values }),
   })
+}
+
+export async function upsertPlannerRecords(records: { kind: RecordKind; id: string; item: unknown }[]) {
+  const { sheetId, token } = await connectToSheet()
+  const result = await googleRequest<{ values?: string[][] }>(`${sheetId}/values/${SHEET_NAME}!A2:C`, token)
+  const rows = result.values ?? []
+  const updates: { range: string; values: string[][] }[] = []
+  const appends: string[][] = []
+  for (const record of records) {
+    const values = [record.kind, record.id, JSON.stringify(record.item)]
+    const index = rows.findIndex(([kind, id]) => kind === record.kind && id === record.id)
+    if (index < 0) appends.push(values)
+    else updates.push({ range: `${SHEET_NAME}!A${index + 2}:C${index + 2}`, values: [values] })
+  }
+  if (updates.length) {
+    await googleRequest(`${sheetId}/values:batchUpdate`, token, {
+      method: "POST",
+      body: JSON.stringify({ valueInputOption: "RAW", data: updates }),
+    })
+  }
+  if (appends.length) {
+    await googleRequest(`${sheetId}/values/${SHEET_NAME}!A:C:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, token, {
+      method: "POST",
+      body: JSON.stringify({ values: appends }),
+    })
+  }
+}
+
+export interface SheetInfo {
+  title: string
+  url: string
+  spreadsheetId: string
+  tabName: string
+  tabs: string[]
+  locale?: string
+  timeZone?: string
+  serviceAccountEmail: string
+  owners: { name?: string; email?: string }[]
+  modifiedTime?: string
+  lastModifiedBy?: { name?: string; email?: string }
+  driveInfoAvailable: boolean
+}
+
+export async function readSheetInfo(): Promise<SheetInfo> {
+  const { sheetId, serviceAccount } = getConfiguration()
+  const encodedId = encodeURIComponent(sheetId)
+  const token = await getAccessToken(serviceAccount)
+  const spreadsheet = await googleRequest<{
+    spreadsheetUrl?: string
+    properties?: { title?: string; locale?: string; timeZone?: string }
+    sheets?: { properties?: { title?: string } }[]
+  }>(`${encodedId}?fields=spreadsheetUrl,properties(title,locale,timeZone),sheets.properties.title`, token)
+
+  const info: SheetInfo = {
+    title: spreadsheet.properties?.title ?? "Untitled spreadsheet",
+    url: spreadsheet.spreadsheetUrl ?? `https://docs.google.com/spreadsheets/d/${encodedId}/edit`,
+    spreadsheetId: sheetId,
+    tabName: SHEET_NAME,
+    tabs: (spreadsheet.sheets ?? []).map((sheet) => sheet.properties?.title).filter((title): title is string => Boolean(title)),
+    locale: spreadsheet.properties?.locale,
+    timeZone: spreadsheet.properties?.timeZone,
+    serviceAccountEmail: serviceAccount.client_email,
+    owners: [],
+    driveInfoAvailable: false,
+  }
+
+  // Owner details need the Drive API enabled on the service account's project; skip quietly if not.
+  try {
+    const driveToken = await getAccessToken(serviceAccount, DRIVE_METADATA_SCOPE)
+    const response = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${encodedId}?fields=owners(displayName,emailAddress),modifiedTime,lastModifyingUser(displayName,emailAddress)&supportsAllDrives=true`,
+      { headers: { authorization: `Bearer ${driveToken}` } },
+    )
+    if (response.ok) {
+      const file = await response.json() as {
+        owners?: { displayName?: string; emailAddress?: string }[]
+        modifiedTime?: string
+        lastModifyingUser?: { displayName?: string; emailAddress?: string }
+      }
+      info.owners = (file.owners ?? []).map((owner) => ({ name: owner.displayName, email: owner.emailAddress }))
+      info.modifiedTime = file.modifiedTime
+      if (file.lastModifyingUser) info.lastModifiedBy = { name: file.lastModifyingUser.displayName, email: file.lastModifyingUser.emailAddress }
+      info.driveInfoAvailable = true
+    } else {
+      console.warn("Drive metadata unavailable", response.status)
+    }
+  } catch (error) {
+    console.warn("Drive metadata unavailable", error)
+  }
+
+  return info
 }
 
 export function isRecordKind(value: unknown): value is RecordKind {

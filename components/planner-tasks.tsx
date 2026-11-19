@@ -7,9 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { EVENT_CATEGORIES } from "@/components/planner-data"
 import { EmptyState, SectionHeader, TaskRow } from "@/components/planner-shared"
-import type { EventCategory, PlannerTask } from "@/components/planner-types"
+import type { PlannerTask } from "@/components/planner-types"
 
 type TaskFilter = "all" | "open" | "done"
 
@@ -20,7 +19,6 @@ const MONTH_ITEMS = [
     label: new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(2000, index, 1, 12)),
   })),
 ]
-const CATEGORY_ITEMS = [{ value: "all", label: "All" }, ...EVENT_CATEGORIES.map((category) => ({ value: category, label: category }))]
 const STATUS_ITEMS = [
   { value: "all", label: "All tasks" },
   { value: "open", label: "Open only" },
@@ -29,17 +27,22 @@ const STATUS_ITEMS = [
 
 export function PlannerTasks({
   tasks,
+  categories,
   today,
   onAdd,
+  onEdit,
   onToggle,
   onDelete,
 }: {
   tasks: PlannerTask[]
+  categories: string[]
   today: string
   onAdd: () => void
+  onEdit: (task: PlannerTask) => void
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
 }) {
+  const categoryItems = [{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]
   const [filter, setFilter] = useState<TaskFilter>("all")
   const [monthFilter, setMonthFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
@@ -100,13 +103,13 @@ export function PlannerTasks({
             </Field>
             <Field>
               <FieldLabel htmlFor="task-list-category">Category</FieldLabel>
-              <Select items={CATEGORY_ITEMS} value={categoryFilter} onValueChange={(value) => {
-                if (typeof value === "string" && (value === "all" || EVENT_CATEGORIES.includes(value as EventCategory))) setCategoryFilter(value)
+              <Select items={categoryItems} value={categoryFilter} onValueChange={(value) => {
+                if (typeof value === "string" && (value === "all" || categories.includes(value))) setCategoryFilter(value)
               }}>
                 <SelectTrigger id="task-list-category" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {CATEGORY_ITEMS.map((category) => (
+                    {categoryItems.map((category) => (
                       <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
                     ))}
                   </SelectGroup>
@@ -133,7 +136,7 @@ export function PlannerTasks({
               {visibleTasks.length ? (
                 <div className="divide-y divide-border/70">
                   {visibleTasks.map((task) => (
-                    <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onDelete={onDelete} />
+                    <TaskRow key={task.id} task={task} today={today} onToggle={onToggle} onEdit={onEdit} onDelete={onDelete} />
                   ))}
                 </div>
               ) : narrowed ? (

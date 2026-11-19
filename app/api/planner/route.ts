@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
 
-import { appendPlannerRecords, isRecordKind, readPlannerData, writePlannerRecord } from "@/lib/google-sheets"
+import { appendPlannerRecords, isRecordKind, readPlannerData, upsertPlannerRecords, writePlannerRecord } from "@/lib/google-sheets"
 
 const MAX_APPEND_ITEMS = 400
+const MAX_UPSERT_RECORDS = 2000
 
 export async function GET() {
   try {
@@ -22,12 +23,36 @@ export async function POST(request: Request) {
     id?: unknown
     item?: unknown
     items?: unknown
+    records?: unknown
     operation?: unknown
   }
   try {
     input = await request.json()
   } catch {
     return NextResponse.json({ error: "Request body must be valid JSON." }, { status: 400 })
+  }
+
+  if (input.operation === "upsertMany") {
+    const records = input.records
+    if (
+      !Array.isArray(records) ||
+      !records.length ||
+      records.length > MAX_UPSERT_RECORDS ||
+      !records.every((record) => record && typeof record === "object" && isRecordKind(record.kind) &&
+        typeof record.id === "string" && record.id && record.item && typeof record.item === "object")
+    ) {
+      return NextResponse.json({ error: "Invalid planner records." }, { status: 400 })
+    }
+    try {
+      await upsertPlannerRecords(records)
+      return NextResponse.json({ ok: true })
+    } catch (error) {
+      console.error("Unable to update planner records", error)
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Unable to save planner data." },
+        { status: 503 },
+      )
+    }
   }
 
   if (input.operation === "append") {

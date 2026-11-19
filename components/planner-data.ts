@@ -22,6 +22,14 @@ export const EVENT_CATEGORIES: EventCategory[] = [
   "Other",
 ]
 
+export const OTHER_CATEGORY = "Other"
+
+/** De-duplicates and keeps "Other" as the last, always-present fallback. */
+export function normalizeCategories(names: string[]) {
+  const unique = names.filter((name, index) => name !== OTHER_CATEGORY && names.indexOf(name) === index)
+  return [...unique, OTHER_CATEGORY]
+}
+
 export function toDateKey(date: Date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, "0")
@@ -97,6 +105,12 @@ export function formatDateTime(value: string) {
   }).format(date)
 }
 
+export function nextMonthlyDate(dateKey: string, day: number) {
+  const [year, month] = dateKey.split("-").map(Number)
+  const lastDay = new Date(year, month + 1, 0, 12).getDate()
+  return toDateKey(new Date(year, month, Math.min(day, lastDay), 12))
+}
+
 export function getGoalDeadline(dateKey: string, period: GoalPeriod) {
   const [year, month] = dateKey.split("-").map(Number)
   if (period === "year") return `${year}-12-31`
@@ -139,5 +153,6 @@ export function createDemoData(today: string): PlannerData {
       { id: "event-4", title: "Payday", category: "Other", date: date(6), time: "All day", allDay: true },
     ],
     deposits: [],
+    feedback: [],
   }
 }

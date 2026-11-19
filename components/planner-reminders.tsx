@@ -8,30 +8,32 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { EVENT_CATEGORIES, formatDateLong, formatTime } from "@/components/planner-data"
+import { formatDateLong, formatTime } from "@/components/planner-data"
 import { EmptyState, SectionHeader } from "@/components/planner-shared"
-import type { EventCategory, Reminder } from "@/components/planner-types"
+import type { Reminder } from "@/components/planner-types"
 
 const MONTHS = Array.from({ length: 12 }, (_, index) => ({
   value: String(index + 1).padStart(2, "0"),
   label: new Intl.DateTimeFormat("en-US", { month: "long" }).format(new Date(2000, index, 1, 12)),
 }))
 const MONTH_ITEMS = [{ value: "all", label: "All" }, ...MONTHS]
-const CATEGORY_ITEMS = [{ value: "all", label: "All" }, ...EVENT_CATEGORIES.map((category) => ({ value: category, label: category }))]
 
 export function PlannerReminders({
   reminders,
+  categories,
   today,
   onAdd,
   onToggle,
   onDelete,
 }: {
   reminders: Reminder[]
+  categories: string[]
   today: string
   onAdd: () => void
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
 }) {
+  const categoryItems = [{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]
   const [monthFilter, setMonthFilter] = useState("all")
   const [categoryFilter, setCategoryFilter] = useState("all")
   const sorted = reminders
@@ -77,13 +79,13 @@ export function PlannerReminders({
             </Field>
             <Field>
               <FieldLabel htmlFor="reminder-list-category">Category</FieldLabel>
-              <Select items={CATEGORY_ITEMS} value={categoryFilter} onValueChange={(value) => {
-                if (typeof value === "string" && (value === "all" || EVENT_CATEGORIES.includes(value as EventCategory))) setCategoryFilter(value)
+              <Select items={categoryItems} value={categoryFilter} onValueChange={(value) => {
+                if (typeof value === "string" && (value === "all" || categories.includes(value))) setCategoryFilter(value)
               }}>
                 <SelectTrigger id="reminder-list-category" className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectGroup>
-                    {CATEGORY_ITEMS.map((category) => (
+                    {categoryItems.map((category) => (
                       <SelectItem key={category.value} value={category.value}>{category.label}</SelectItem>
                     ))}
                   </SelectGroup>

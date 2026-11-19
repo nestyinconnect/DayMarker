@@ -1,17 +1,7 @@
-export type PlannerView = "overview" | "expenses" | "deposits" | "tasks" | "goals" | "calendar" | "reminders"
+export type PlannerView = "overview" | "expenses" | "deposits" | "tasks" | "goals" | "calendar" | "reminders" | "feedback" | "sheet"
 export type CreateKind = "expense" | "deposit" | "task" | "goal" | "reminder" | "event"
-export type ExpenseCategory = "Groceries" | "Dining" | "Transport" | "Home" | "Wellness" | "Other"
-export type EventCategory =
-  | "Work & Office"
-  | "Faith & Spiritual"
-  | "Shopping & Errands"
-  | "Achievements"
-  | "Happy Moments"
-  | "Festivals & Holidays"
-  | "Family & Friends"
-  | "Health & Wellness"
-  | "Travel"
-  | "Other"
+export type ExpenseCategory = string
+export type EventCategory = string
 export type TaskPriority = "low" | "normal" | "high"
 export type GoalPeriod = "month" | "year"
 
@@ -30,6 +20,10 @@ export interface PlannerTask {
   dueDate: string
   priority: TaskPriority
   completed: boolean
+  recurrence?: "monthly"
+  /** Day of month to keep for every repeat, so 31 → Feb 28 → Mar 31 doesn't drift. */
+  repeatDay?: number
+  seriesId?: string
 }
 
 export interface Goal {
@@ -68,13 +62,30 @@ export interface FixedDeposit {
   maturityAmount: number
 }
 
+export type FeedbackType = "Enhancement" | "Bug" | "Feedback"
+export type FeedbackStatus = "open" | "in-progress" | "resolved"
+
+export interface FeedbackItem {
+  id: string
+  title: string
+  details?: string
+  type: FeedbackType
+  priority: TaskPriority
+  status: FeedbackStatus
+  createdAt: string
+  resolvedAt?: string
+}
+
 export interface PlannerData {
+  categories?: string[]
+  expenseCategories?: string[]
   expenses: Expense[]
   deposits: FixedDeposit[]
   tasks: PlannerTask[]
   goals: Goal[]
   reminders: Reminder[]
   events: CalendarEvent[]
+  feedback: FeedbackItem[]
 }
 
 export type NewPlannerRecord =

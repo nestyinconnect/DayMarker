@@ -23,8 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, getGoalDeadline } from "@/components/planner-data"
-import type { CalendarEvent, CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, Reminder, TaskPriority } from "@/components/planner-types"
+import { getGoalDeadline } from "@/components/planner-data"
+import type { CalendarEvent, CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, PlannerTask, Reminder, TaskPriority } from "@/components/planner-types"
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
   value: index + 1,
@@ -48,28 +48,35 @@ const CREATE_DETAILS: Record<CreateKind, { title: string; description: string }>
 export function PlannerCreateDialog({
   open,
   kind,
+  categories,
+  expenseCategories,
   today,
   defaultDate,
   editEvent,
+  editTask,
   onOpenChange,
   onCreate,
   onCreateReminders,
 }: {
   open: boolean
   kind: CreateKind | null
+  categories: string[]
+  expenseCategories: string[]
   today: string
   defaultDate: string
   editEvent?: CalendarEvent | null
+  editTask?: PlannerTask | null
   onOpenChange: (open: boolean) => void
   onCreate: (record: NewPlannerRecord) => Promise<void>
   onCreateReminders: (items: Reminder[]) => Promise<void>
 }) {
-  const [title, setTitle] = useState(editEvent?.title ?? "")
+  const [title, setTitle] = useState(editEvent?.title ?? editTask?.title ?? "")
   const [amount, setAmount] = useState("")
-  const [category, setCategory] = useState<ExpenseCategory>("Groceries")
-  const [date, setDate] = useState(editEvent?.date ?? defaultDate)
-  const [priority, setPriority] = useState<TaskPriority>("normal")
-  const [taskCategory, setTaskCategory] = useState<EventCategory>("Other")
+  const [category, setCategory] = useState<ExpenseCategory>(expenseCategories[0] ?? "Other")
+  const [date, setDate] = useState(editEvent?.date ?? editTask?.dueDate ?? defaultDate)
+  const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? "normal")
+  const [taskCategory, setTaskCategory] = useState<EventCategory>(editTask?.category ?? "Other")
+  const [taskMonthly, setTaskMonthly] = useState(editTask?.recurrence === "monthly")
   const [period, setPeriod] = useState<GoalPeriod>("month")
   const [reminderCategory, setReminderCategory] = useState<EventCategory>("Other")
   const [reminderYear, setReminderYear] = useState(defaultDate.slice(0, 4))
@@ -86,9 +93,12 @@ export function PlannerCreateDialog({
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const activeKind = kind ?? "expense"
-  const isEditing = activeKind === "event" && Boolean(editEvent)
+  const editingItem = activeKind === "event" ? editEvent : activeKind === "task" ? editTask : null
+  const isEditing = Boolean(editingItem)
   const details = isEditing
-    ? { title: "Edit event", description: "Update the name, date, time, or category of this event." }
+    ? activeKind === "task"
+      ? { title: "Edit task", description: "Update the name, category, due date, or priority of this task." }
+      : { title: "Edit event", description: "Update the name, date, time, or category of this event." }
     : CREATE_DETAILS[activeKind]
   const yearOptions = [today.slice(0, 4), String(Number(today.slice(0, 4)) + 1)]
   const reminderDates = reminderMonths.flatMap((month) => reminderDays
@@ -104,7 +114,7 @@ export function PlannerCreateDialog({
       return
     }
 
-    const id = isEditing && editEvent ? editEvent.id : crypto.randomUUID()
+    const id = editingItem ? editingItem.id : crypto.randomUUID()
     setError("")
 
     setSaving(true)
@@ -124,7 +134,15 @@ export function PlannerCreateDialog({
       if (activeKind === "task") {
         await onCreate({
           kind: "task",
-          item: { id, title: cleanTitle, category: taskCategory, dueDate: date, priority, completed: false },
+          item: {
+            id,
+            title: cleanTitle,
+            category: taskCategory,
+            dueDate: date,
+            priority,
+            completed: editTask?.completed ?? false,
+            ...(taskMonthly ? { recurrence: "monthly" as const, repeatDay: Number(date.slice(8, 10)), seriesId: editTask?.seriesId ?? id } : {}),
+          },
         })
       }
 
@@ -251,14 +269,14 @@ export function PlannerCreateDialog({
                   <Field>
                     <FieldLabel htmlFor="expense-category">Category</FieldLabel>
                     <Select value={category} onValueChange={(value) => {
-                      if (typeof value === "string") setCategory(value as ExpenseCategory)
+                      if (typeof value === "string" && expenseCategories.includes(value)) setCategory(value)
                     }}>
                       <SelectTrigger id="expense-category" className="w-full">
                         <SelectValue placeholder="Choose a category" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {EXPENSE_CATEGORIES.map((option) => (
+                          {expenseCategories.map((option) => (
                             <SelectItem key={option} value={option}>{option}</SelectItem>
                           ))}
                         </SelectGroup>
@@ -278,12 +296,12 @@ export function PlannerCreateDialog({
               <Field>
                 <FieldLabel htmlFor="task-category">Category</FieldLabel>
                 <Select value={taskCategory} onValueChange={(value) => {
-                  if (EVENT_CATEGORIES.includes(value as EventCategory)) setTaskCategory(value as EventCategory)
+                  if (typeof value === "string" && categories.includes(value)) setTaskCategory(value)
                 }}>
                   <SelectTrigger id="task-category" className="w-full"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      {EVENT_CATEGORIES.map((option) => (
+                      {categories.map((option) => (
                         <SelectItem key={option} value={option}>{option}</SelectItem>
                       ))}
                     </SelectGroup>
@@ -311,6 +329,13 @@ export function PlannerCreateDialog({
                   </Select>
                 </Field>
               </FieldGroup>
+              <Field orientation="horizontal" className="items-center gap-3">
+                <Checkbox id="task-monthly" checked={taskMonthly} onCheckedChange={(checked) => setTaskMonthly(checked === true)} />
+                <FieldLabel htmlFor="task-monthly" className="font-normal">Repeat every month</FieldLabel>
+              </Field>
+              {taskMonthly ? (
+                <FieldDescription>When you complete it, the next one is added for day {Number(date.slice(8, 10)) || "–"} of next month.</FieldDescription>
+              ) : null}
               </>
             ) : null}
 
@@ -338,12 +363,12 @@ export function PlannerCreateDialog({
                   <Field>
                     <FieldLabel htmlFor="reminder-category">Category</FieldLabel>
                     <Select value={reminderCategory} onValueChange={(value) => {
-                      if (EVENT_CATEGORIES.includes(value as EventCategory)) setReminderCategory(value as EventCategory)
+                      if (typeof value === "string" && categories.includes(value)) setReminderCategory(value)
                     }}>
                       <SelectTrigger id="reminder-category" className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectGroup>
-                          {EVENT_CATEGORIES.map((option) => (
+                          {categories.map((option) => (
                             <SelectItem key={option} value={option}>{option}</SelectItem>
                           ))}
                         </SelectGroup>
@@ -423,14 +448,14 @@ export function PlannerCreateDialog({
                 <Field>
                   <FieldLabel htmlFor="event-category">Category</FieldLabel>
                   <Select value={eventCategory} onValueChange={(value) => {
-                    if (EVENT_CATEGORIES.includes(value as EventCategory)) setEventCategory(value as EventCategory)
+                    if (typeof value === "string" && categories.includes(value)) setEventCategory(value)
                   }}>
                     <SelectTrigger id="event-category" className="w-full">
                       <SelectValue placeholder="Choose a category" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {EVENT_CATEGORIES.map((option) => (
+                        {categories.map((option) => (
                           <SelectItem key={option} value={option}>{option}</SelectItem>
                         ))}
                       </SelectGroup>
