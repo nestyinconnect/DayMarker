@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { getGoalDeadline } from "@/components/planner-data"
+import { firstMonthlyDate, firstYearlyDate, formatDateShort, getGoalDeadline } from "@/components/planner-data"
 import type { CalendarEvent, CreateKind, EventCategory, Expense, ExpenseCategory, FixedDeposit, GoalPeriod, NewPlannerRecord, PlannerTask, Reminder, TaskPriority } from "@/components/planner-types"
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
@@ -86,6 +86,7 @@ export function PlannerCreateDialog({
   const [reminderYear, setReminderYear] = useState(defaultDate.slice(0, 4))
   const [reminderMonths, setReminderMonths] = useState<number[]>([Number(defaultDate.slice(5, 7))])
   const [reminderDays, setReminderDays] = useState<number[]>([Number(defaultDate.slice(8, 10))])
+  const [reminderRepeat, setReminderRepeat] = useState<"none" | "monthly" | "yearly">("none")
   const [time, setTime] = useState(editEvent && !editEvent.allDay ? editEvent.time : "09:00")
   const [eventCategory, setEventCategory] = useState<EventCategory>(editEvent?.category ?? "Other")
   const [allDay, setAllDay] = useState(editEvent?.allDay ?? false)
@@ -113,6 +114,15 @@ export function PlannerCreateDialog({
     .filter((day) => new Date(Number(reminderYear), month - 1, day, 12).getMonth() === month - 1)
     .map((day) => `${reminderYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`))
   const skippedReminderDates = reminderMonths.length * reminderDays.length - reminderDates.length
+  // Leap year 2024 so Feb 29 counts as valid for yearly reminders.
+  const recurringSeries = reminderRepeat === "monthly"
+    ? reminderDays.map((day) => ({ day, month: undefined as number | undefined, first: firstMonthlyDate(today, day) }))
+    : reminderRepeat === "yearly"
+      ? reminderMonths.flatMap((month) => reminderDays
+        .filter((day) => new Date(2024, month - 1, day, 12).getMonth() === month - 1)
+        .map((day) => ({ day, month: month as number | undefined, first: firstYearlyDate(today, month, day) })))
+      : []
+  const nextRecurring = recurringSeries.map((series) => series.first).sort()[0]
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -161,7 +171,28 @@ export function PlannerCreateDialog({
         })
       }
 
-      if (activeKind === "reminder") {
+      if (activeKind === "reminder" && reminderRepeat !== "none") {
+        if (!recurringSeries.length) {
+          setError(reminderRepeat === "monthly" ? "Pick at least one day." : "Pick at least one month and one valid day.")
+          return
+        }
+        await onCreateReminders(recurringSeries.map((series) => {
+          const seriesId = crypto.randomUUID()
+          return {
+            id: seriesId,
+            title: cleanTitle,
+            category: reminderCategory,
+            remindAt: `${series.first}T${time}`,
+            completed: false,
+            recurrence: reminderRepeat,
+            repeatDay: series.day,
+            ...(series.month ? { repeatMonth: series.month } : {}),
+            seriesId,
+          }
+        }))
+      }
+
+      if (activeKind === "reminder" && reminderRepeat === "none") {
         if (!reminderDates.length) {
           setError("Pick at least one month and one valid day.")
           return
@@ -383,6 +414,7 @@ export function PlannerCreateDialog({
                       </SelectContent>
                     </Select>
                   </Field>
+                  {reminderRepeat === "none" ? (
                   <Field>
                     <FieldLabel htmlFor="reminder-year">Year</FieldLabel>
                     <Select value={reminderYear} onValueChange={(value) => {
@@ -398,11 +430,35 @@ export function PlannerCreateDialog({
                       </SelectContent>
                     </Select>
                   </Field>
+                  ) : null}
                 </FieldGroup>
 
                 <Field>
+                  <FieldLabel id="reminder-repeat-label">Repeat</FieldLabel>
+                  <div role="group" aria-labelledby="reminder-repeat-label" className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1">
+                    {([
+                      { value: "none", label: "Pick dates" },
+                      { value: "monthly", label: "Every month" },
+                      { value: "yearly", label: "Every year" },
+                    ] as const).map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        size="sm"
+                        variant={reminderRepeat === option.value ? "default" : "ghost"}
+                        aria-pressed={reminderRepeat === option.value}
+                        onClick={() => { setReminderRepeat(option.value); setError("") }}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </Field>
+
+                {reminderRepeat !== "monthly" ? (
+                <Field>
                   <div className="flex items-center justify-between gap-2">
-                    <FieldLabel id="reminder-months-label">Months</FieldLabel>
+                    <FieldLabel id="reminder-months-label">{reminderRepeat === "yearly" ? "Months (every year)" : "Months"}</FieldLabel>
                     <div className="flex gap-1">
                       <Button type="button" variant="ghost" size="xs" onClick={() => setReminderMonths(MONTH_OPTIONS.map((month) => month.value))}>All</Button>
                       <Button type="button" variant="ghost" size="xs" onClick={() => setReminderMonths([])}>Clear</Button>
@@ -419,10 +475,11 @@ export function PlannerCreateDialog({
                     })}
                   </div>
                 </Field>
+                ) : null}
 
                 <Field>
                   <div className="flex items-center justify-between gap-2">
-                    <FieldLabel id="reminder-days-label">Days of the month</FieldLabel>
+                    <FieldLabel id="reminder-days-label">{reminderRepeat === "monthly" ? "Days of the month (every month)" : "Days of the month"}</FieldLabel>
                     <div className="flex gap-1">
                       <Button type="button" variant="ghost" size="xs" onClick={() => setReminderDays([...DAY_OPTIONS])}>All</Button>
                       <Button type="button" variant="ghost" size="xs" onClick={() => setReminderDays([])}>Clear</Button>
@@ -444,8 +501,18 @@ export function PlannerCreateDialog({
                   <FieldLabel htmlFor="reminder-time">Time</FieldLabel>
                   <Input id="reminder-time" type="time" value={time} onChange={(event) => setTime(event.target.value)} required />
                   <FieldDescription aria-live="polite">
-                    {reminderDates.length} {reminderDates.length === 1 ? "reminder" : "reminders"} will be added
-                    {skippedReminderDates ? ` · ${skippedReminderDates} invalid ${skippedReminderDates === 1 ? "date" : "dates"} skipped (e.g. Feb 30)` : ""}
+                    {reminderRepeat === "none" ? (
+                      <>
+                        {reminderDates.length} {reminderDates.length === 1 ? "reminder" : "reminders"} will be added
+                        {skippedReminderDates ? ` · ${skippedReminderDates} invalid ${skippedReminderDates === 1 ? "date" : "dates"} skipped (e.g. Feb 30)` : ""}
+                      </>
+                    ) : (
+                      <>
+                        {recurringSeries.length} repeating {recurringSeries.length === 1 ? "reminder" : "reminders"}, {reminderRepeat === "monthly" ? "every month" : "every year"}
+                        {nextRecurring ? ` · first on ${formatDateShort(nextRecurring)}, ${nextRecurring.slice(0, 4)}` : ""}
+                        . Marking one done schedules the next.
+                      </>
+                    )}
                   </FieldDescription>
                 </Field>
               </>

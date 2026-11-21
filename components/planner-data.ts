@@ -109,8 +109,28 @@ export function formatDateTime(value: string) {
 
 export function nextMonthlyDate(dateKey: string, day: number) {
   const [year, month] = dateKey.split("-").map(Number)
-  const lastDay = new Date(year, month + 1, 0, 12).getDate()
-  return toDateKey(new Date(year, month, Math.min(day, lastDay), 12))
+  return clampedDateKey(year, month, day)
+}
+
+function clampedDateKey(year: number, monthIndex: number, day: number) {
+  const lastDay = new Date(year, monthIndex + 1, 0, 12).getDate()
+  return toDateKey(new Date(year, monthIndex, Math.min(day, lastDay), 12))
+}
+
+export function firstMonthlyDate(today: string, day: number) {
+  const [year, month] = today.split("-").map(Number)
+  const candidate = clampedDateKey(year, month - 1, day)
+  return candidate >= today ? candidate : clampedDateKey(year, month, day)
+}
+
+export function firstYearlyDate(today: string, month: number, day: number) {
+  const year = Number(today.slice(0, 4))
+  const candidate = clampedDateKey(year, month - 1, day)
+  return candidate >= today ? candidate : clampedDateKey(year + 1, month - 1, day)
+}
+
+export function nextYearlyDate(dateKey: string, month: number, day: number) {
+  return clampedDateKey(Number(dateKey.slice(0, 4)) + 1, month - 1, day)
 }
 
 export function getGoalDeadline(dateKey: string, period: GoalPeriod) {

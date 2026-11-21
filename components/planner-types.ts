@@ -40,6 +40,10 @@ export interface Reminder {
   category?: EventCategory
   remindAt: string
   completed: boolean
+  recurrence?: "monthly" | "yearly"
+  repeatDay?: number
+  repeatMonth?: number
+  seriesId?: string
 }
 
 export interface CalendarEvent {

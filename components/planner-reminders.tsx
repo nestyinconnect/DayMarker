@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { AlarmClock, Bell, Plus, Trash2 } from "lucide-react"
+import { AlarmClock, Bell, Plus, Repeat, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -119,6 +119,9 @@ export function PlannerReminders({
                         </p>
                       </div>
                       <Badge variant="outline" className="hidden sm:inline-flex">{MONTHS[Number(reminder.remindAt.slice(5, 7)) - 1]?.label}</Badge>
+                      {reminder.recurrence ? (
+                        <Badge variant="outline" className="gap-1"><Repeat aria-hidden="true" className="size-3" />{reminder.recurrence === "monthly" ? "Monthly" : "Yearly"}</Badge>
+                      ) : null}
                       <Badge variant="secondary" className="hidden sm:inline-flex">{reminder.category ?? "Other"}</Badge>
                       {overdue ? <Badge variant="destructive">Overdue</Badge> : null}
                       {!overdue && !reminder.completed ? <Badge variant="secondary">Upcoming</Badge> : null}

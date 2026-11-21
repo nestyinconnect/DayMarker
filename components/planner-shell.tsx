@@ -31,7 +31,7 @@ import { PlannerOverview } from "@/components/planner-overview"
 import { PlannerReminders } from "@/components/planner-reminders"
 import { PlannerSheetInfo } from "@/components/planner-sheet-info"
 import { PlannerTasks } from "@/components/planner-tasks"
-import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, OTHER_CATEGORY, formatCurrency, formatDateLong, nextMonthlyDate, normalizeCategories } from "@/components/planner-data"
+import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, OTHER_CATEGORY, formatCurrency, formatDateLong, nextMonthlyDate, nextYearlyDate, normalizeCategories } from "@/components/planner-data"
 import type { CalendarEvent, CreateKind, Expense, FeedbackItem, FixedDeposit, NewPlannerRecord, PlannerData, PlannerTask, PlannerView, Reminder } from "@/components/planner-types"
 import { cn } from "@/lib/utils"
 
@@ -376,8 +376,23 @@ export function PlannerShell({ today }: { today: string }) {
     const reminder = data.reminders.find((item) => item.id === id)
     if (!reminder) return
     const updatedReminder = { ...reminder, completed }
+    const dateKey = reminder.remindAt.slice(0, 10)
+    const day = reminder.repeatDay ?? Number(dateKey.slice(8, 10))
+    const nextDate = reminder.recurrence === "monthly"
+      ? nextMonthlyDate(dateKey, day)
+      : reminder.recurrence === "yearly"
+        ? nextYearlyDate(dateKey, reminder.repeatMonth ?? Number(dateKey.slice(5, 7)), day)
+        : null
+    const seriesId = reminder.seriesId ?? reminder.id
+    const nextReminder = completed && nextDate && !data.reminders.some((item) => (item.seriesId ?? item.id) === seriesId && item.remindAt.startsWith(nextDate))
+      ? { ...reminder, id: crypto.randomUUID(), seriesId, remindAt: `${nextDate}${reminder.remindAt.slice(10)}`, completed: false }
+      : null
     void persistRecord("reminder", id, updatedReminder, "upsert")
-      .then(() => setData((current) => ({ ...current, reminders: current.reminders.map((item) => item.id === id ? updatedReminder : item) })))
+      .then(() => nextReminder ? persistRecord("reminder", nextReminder.id, nextReminder, "upsert") : undefined)
+      .then(() => setData((current) => ({
+        ...current,
+        reminders: [...(nextReminder ? [nextReminder] : []), ...current.reminders.map((item) => item.id === id ? updatedReminder : item)],
+      })))
       .catch(reportSyncError)
   }
 
