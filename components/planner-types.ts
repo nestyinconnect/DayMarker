@@ -24,6 +24,8 @@ export interface PlannerTask {
   /** Day of month to keep for every repeat, so 31 → Feb 28 → Mar 31 doesn't drift. */
   repeatDay?: number
   seriesId?: string
+  plannedFor?: string
+  planOrder?: number
 }
 
 export interface Goal {

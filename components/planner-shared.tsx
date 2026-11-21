@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { Pencil, Receipt, Repeat, Trash2, type LucideIcon } from "lucide-react"
+import { Pencil, Receipt, Repeat, Sun, Trash2, type LucideIcon } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -163,6 +163,9 @@ export function TaskRow({
         </label>
         <p className="mt-1 text-xs text-muted-foreground">{formatRelativeDate(task.dueDate, today)}</p>
       </div>
+      {task.plannedFor === today ? (
+        <Badge variant="default" className="gap-1"><Sun aria-hidden="true" className="size-3" />Today</Badge>
+      ) : null}
       {task.recurrence === "monthly" ? (
         <Badge variant="outline" className="gap-1"><Repeat aria-hidden="true" className="size-3" />Monthly</Badge>
       ) : null}

@@ -31,6 +31,7 @@ import { PlannerOverview } from "@/components/planner-overview"
 import { PlannerReminders } from "@/components/planner-reminders"
 import { PlannerSheetInfo } from "@/components/planner-sheet-info"
 import { PlannerTasks } from "@/components/planner-tasks"
+import { unplanTask } from "@/components/planner-today-plan"
 import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, OTHER_CATEGORY, formatCurrency, formatDateLong, nextMonthlyDate, nextYearlyDate, normalizeCategories } from "@/components/planner-data"
 import type { CalendarEvent, CreateKind, Expense, FeedbackItem, FixedDeposit, NewPlannerRecord, PlannerData, PlannerTask, PlannerView, Reminder } from "@/components/planner-types"
 import { cn } from "@/lib/utils"
@@ -354,6 +355,19 @@ export function PlannerShell({ today }: { today: string }) {
     if (record.kind === "event") setSelectedCalendarDate(record.item.date)
   }
 
+  async function saveTasks(updated: PlannerTask[]) {
+    const response = await fetch("/api/planner", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ operation: "upsertMany", records: updated.map((item) => ({ kind: "task", id: item.id, item })) }),
+    })
+    const result = await response.json()
+    if (!response.ok) throw new Error(result.error || "Unable to save tasks.")
+    setSyncStatus("ready")
+    setSyncMessage("")
+    setData((current) => ({ ...current, tasks: current.tasks.map((item) => updated.find((next) => next.id === item.id) ?? item) }))
+  }
+
   function toggleTask(id: string, completed: boolean) {
     const task = data.tasks.find((item) => item.id === id)
     if (!task) return
@@ -361,7 +375,7 @@ export function PlannerShell({ today }: { today: string }) {
     const seriesId = task.seriesId ?? task.id
     const nextDueDate = task.recurrence === "monthly" ? nextMonthlyDate(task.dueDate, task.repeatDay ?? Number(task.dueDate.slice(8, 10))) : null
     const nextTask = completed && nextDueDate && !data.tasks.some((item) => (item.seriesId ?? item.id) === seriesId && item.dueDate === nextDueDate)
-      ? { ...task, id: crypto.randomUUID(), seriesId, dueDate: nextDueDate, completed: false }
+      ? { ...unplanTask(task), id: crypto.randomUUID(), seriesId, dueDate: nextDueDate, completed: false }
       : null
     void persistRecord("task", id, updatedTask, "upsert")
       .then(() => nextTask ? persistRecord("task", nextTask.id, nextTask, "upsert") : undefined)
@@ -516,7 +530,7 @@ export function PlannerShell({ today }: { today: string }) {
             <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onEdit={openEditExpense} onDelete={removeExpense} onManageCategories={() => openCategories("expense")} />
           ) : null}
           {activeView === "tasks" ? (
-            <PlannerTasks tasks={data.tasks} categories={categories} today={today} onAdd={() => openCreate("task")} onEdit={openEditTask} onToggle={toggleTask} onDelete={removeTask} />
+            <PlannerTasks tasks={data.tasks} categories={categories} today={today} onAdd={() => openCreate("task")} onEdit={openEditTask} onToggle={toggleTask} onDelete={removeTask} onUpdateTasks={saveTasks} />
           ) : null}
           {activeView === "goals" ? (
             <PlannerGoals goals={data.goals} onAdd={() => openCreate("goal")} onAdvance={advanceGoal} onDelete={removeGoal} />

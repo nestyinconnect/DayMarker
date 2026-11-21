@@ -159,6 +159,7 @@ export function PlannerCreateDialog({
             dueDate: date,
             priority,
             completed: editTask?.completed ?? false,
+            ...(editTask?.plannedFor ? { plannedFor: editTask.plannedFor, planOrder: editTask.planOrder } : {}),
             ...(taskMonthly ? { recurrence: "monthly" as const, repeatDay: Number(date.slice(8, 10)), seriesId: editTask?.seriesId ?? id } : {}),
           },
         })

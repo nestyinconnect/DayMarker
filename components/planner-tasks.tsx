@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ListTodo, Plus } from "lucide-react"
+import { ListTodo, Plus, Sun } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,6 +8,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { EmptyState, SectionHeader, TaskRow } from "@/components/planner-shared"
+import { PlannerTodayPlan } from "@/components/planner-today-plan"
 import type { PlannerTask } from "@/components/planner-types"
 
 type TaskFilter = "all" | "open" | "done"
@@ -33,6 +34,7 @@ export function PlannerTasks({
   onEdit,
   onToggle,
   onDelete,
+  onUpdateTasks,
 }: {
   tasks: PlannerTask[]
   categories: string[]
@@ -41,7 +43,10 @@ export function PlannerTasks({
   onEdit: (task: PlannerTask) => void
   onToggle: (id: string, completed: boolean) => void
   onDelete: (id: string) => void
+  onUpdateTasks: (tasks: PlannerTask[]) => Promise<void>
 }) {
+  const [mode, setMode] = useState<"today" | "all">("today")
+  const plannedToday = tasks.filter((task) => task.plannedFor === today)
   const categoryItems = [{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]
   const [filter, setFilter] = useState<TaskFilter>("all")
   const [monthFilter, setMonthFilter] = useState("all")
@@ -63,6 +68,22 @@ export function PlannerTasks({
         action={<Button onClick={onAdd}><Plus data-icon="inline-start" aria-hidden="true" />Add task</Button>}
       />
 
+      <div role="tablist" aria-label="Task views" className="inline-flex gap-1 rounded-lg bg-muted p-1">
+        <Button type="button" role="tab" size="sm" variant={mode === "today" ? "default" : "ghost"} aria-selected={mode === "today"} onClick={() => setMode("today")}>
+          <Sun data-icon="inline-start" aria-hidden="true" />Plan for today
+          <Badge variant="secondary" className="ml-1 h-5 px-1.5 tabular-nums">{plannedToday.filter((task) => !task.completed).length}</Badge>
+        </Button>
+        <Button type="button" role="tab" size="sm" variant={mode === "all" ? "default" : "ghost"} aria-selected={mode === "all"} onClick={() => setMode("all")}>
+          <ListTodo data-icon="inline-start" aria-hidden="true" />All tasks
+        </Button>
+      </div>
+
+      {mode === "today" ? (
+        <PlannerTodayPlan tasks={tasks} today={today} onToggle={onToggle} onUpdateTasks={onUpdateTasks} />
+      ) : null}
+
+      {mode === "all" ? (
+      <>
       <Card>
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -196,6 +217,8 @@ export function PlannerTasks({
           </CardContent>
         </Card>
       </div>
+      </>
+      ) : null}
     </div>
   )
 }
