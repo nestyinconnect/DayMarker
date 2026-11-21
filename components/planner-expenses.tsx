@@ -12,11 +12,13 @@ export function PlannerExpenses({
   data,
   today,
   onAdd,
+  onEdit,
   onDelete,
 }: {
   data: PlannerData
   today: string
   onAdd: () => void
+  onEdit: (expense: Expense) => void
   onDelete: (id: string) => void
 }) {
   const monthKey = today.slice(0, 7)
@@ -100,7 +102,7 @@ export function PlannerExpenses({
               <div>
                 {allExpenses.map((expense, index) => (
                   <div key={expense.id}>
-                    <ExpenseRow expense={expense} onDelete={onDelete} />
+                    <ExpenseRow expense={expense} onEdit={onEdit} onDelete={onDelete} />
                     {index < allExpenses.length - 1 ? <Separator /> : null}
                   </div>
                 ))}

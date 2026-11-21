@@ -82,9 +82,11 @@ export function EmptyState({
 
 export function ExpenseRow({
   expense,
+  onEdit,
   onDelete,
 }: {
   expense: Expense
+  onEdit?: (expense: Expense) => void
   onDelete?: (id: string) => void
 }) {
   return (
@@ -100,6 +102,18 @@ export function ExpenseRow({
         </div>
       </div>
       <p className="shrink-0 text-right font-semibold tabular-nums">{formatCurrency(expense.amount)}</p>
+      {onEdit ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground"
+          aria-label={`Edit ${expense.title}`}
+          onClick={() => onEdit(expense)}
+        >
+          <Pencil aria-hidden="true" />
+        </Button>
+      ) : null}
       {onDelete ? (
         <Button
           type="button"
@@ -107,7 +121,7 @@ export function ExpenseRow({
           size="icon-sm"
           className="shrink-0 text-muted-foreground hover:text-destructive"
           aria-label={`Remove ${expense.title}`}
-          onClick={() => onDelete(expense.id)}
+          onClick={() => { if (window.confirm(`Delete the expense "${expense.title}"?`)) onDelete(expense.id) }}
         >
           <Trash2 aria-hidden="true" />
         </Button>

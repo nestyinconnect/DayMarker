@@ -6,6 +6,7 @@ export const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "Transport",
   "Home",
   "Wellness",
+  "Financial",
   "Other",
 ]
 
@@ -19,6 +20,7 @@ export const EVENT_CATEGORIES: EventCategory[] = [
   "Family & Friends",
   "Health & Wellness",
   "Travel",
+  "Financial",
   "Other",
 ]
 

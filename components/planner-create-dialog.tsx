@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { getGoalDeadline } from "@/components/planner-data"
-import type { CalendarEvent, CreateKind, EventCategory, ExpenseCategory, GoalPeriod, NewPlannerRecord, PlannerTask, Reminder, TaskPriority } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, EventCategory, Expense, ExpenseCategory, FixedDeposit, GoalPeriod, NewPlannerRecord, PlannerTask, Reminder, TaskPriority } from "@/components/planner-types"
 
 const MONTH_OPTIONS = Array.from({ length: 12 }, (_, index) => ({
   value: index + 1,
@@ -54,6 +54,8 @@ export function PlannerCreateDialog({
   defaultDate,
   editEvent,
   editTask,
+  editDeposit,
+  editExpense,
   onOpenChange,
   onCreate,
   onCreateReminders,
@@ -66,14 +68,16 @@ export function PlannerCreateDialog({
   defaultDate: string
   editEvent?: CalendarEvent | null
   editTask?: PlannerTask | null
+  editDeposit?: FixedDeposit | null
+  editExpense?: Expense | null
   onOpenChange: (open: boolean) => void
   onCreate: (record: NewPlannerRecord) => Promise<void>
   onCreateReminders: (items: Reminder[]) => Promise<void>
 }) {
-  const [title, setTitle] = useState(editEvent?.title ?? editTask?.title ?? "")
-  const [amount, setAmount] = useState("")
-  const [category, setCategory] = useState<ExpenseCategory>(expenseCategories[0] ?? "Other")
-  const [date, setDate] = useState(editEvent?.date ?? editTask?.dueDate ?? defaultDate)
+  const [title, setTitle] = useState(editEvent?.title ?? editTask?.title ?? editDeposit?.bank ?? editExpense?.title ?? "")
+  const [amount, setAmount] = useState(editExpense ? String(editExpense.amount) : "")
+  const [category, setCategory] = useState<ExpenseCategory>(editExpense?.category ?? expenseCategories[0] ?? "Other")
+  const [date, setDate] = useState(editEvent?.date ?? editTask?.dueDate ?? editDeposit?.depositDate ?? editExpense?.date ?? defaultDate)
   const [priority, setPriority] = useState<TaskPriority>(editTask?.priority ?? "normal")
   const [taskCategory, setTaskCategory] = useState<EventCategory>(editTask?.category ?? "Other")
   const [taskMonthly, setTaskMonthly] = useState(editTask?.recurrence === "monthly")
@@ -85,20 +89,24 @@ export function PlannerCreateDialog({
   const [time, setTime] = useState(editEvent && !editEvent.allDay ? editEvent.time : "09:00")
   const [eventCategory, setEventCategory] = useState<EventCategory>(editEvent?.category ?? "Other")
   const [allDay, setAllDay] = useState(editEvent?.allDay ?? false)
-  const [accountNumber, setAccountNumber] = useState("")
-  const [principal, setPrincipal] = useState("")
-  const [interestRate, setInterestRate] = useState("")
-  const [maturityDate, setMaturityDate] = useState("")
-  const [maturityAmount, setMaturityAmount] = useState("")
+  const [accountNumber, setAccountNumber] = useState(editDeposit?.accountNumber ?? "")
+  const [principal, setPrincipal] = useState(editDeposit ? String(editDeposit.principal) : "")
+  const [interestRate, setInterestRate] = useState(editDeposit ? String(editDeposit.interestRate) : "")
+  const [maturityDate, setMaturityDate] = useState(editDeposit?.maturityDate ?? "")
+  const [maturityAmount, setMaturityAmount] = useState(editDeposit ? String(editDeposit.maturityAmount) : "")
   const [error, setError] = useState("")
   const [saving, setSaving] = useState(false)
   const activeKind = kind ?? "expense"
-  const editingItem = activeKind === "event" ? editEvent : activeKind === "task" ? editTask : null
+  const editingItem = activeKind === "event" ? editEvent : activeKind === "task" ? editTask : activeKind === "deposit" ? editDeposit : activeKind === "expense" ? editExpense : null
   const isEditing = Boolean(editingItem)
   const details = isEditing
     ? activeKind === "task"
       ? { title: "Edit task", description: "Update the name, category, due date, or priority of this task." }
-      : { title: "Edit event", description: "Update the name, date, time, or category of this event." }
+      : activeKind === "deposit"
+        ? { title: "Edit fixed deposit", description: "Update the bank, amounts, rate, or dates of this deposit." }
+        : activeKind === "expense"
+          ? { title: "Edit expense", description: "Update the name, amount, category, or date of this expense." }
+          : { title: "Edit event", description: "Update the name, date, time, or category of this event." }
     : CREATE_DETAILS[activeKind]
   const yearOptions = [today.slice(0, 4), String(Number(today.slice(0, 4)) + 1)]
   const reminderDates = reminderMonths.flatMap((month) => reminderDays

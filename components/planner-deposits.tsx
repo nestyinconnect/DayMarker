@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Landmark, Plus, Trash2 } from "lucide-react"
+import { Landmark, Pencil, Plus, Trash2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -20,11 +20,13 @@ export function PlannerDeposits({
   deposits,
   today,
   onAdd,
+  onEdit,
   onDelete,
 }: {
   deposits: FixedDeposit[]
   today: string
   onAdd: () => void
+  onEdit: (deposit: FixedDeposit) => void
   onDelete: (id: string) => void
 }) {
   const [monthFilter, setMonthFilter] = useState("all")
@@ -113,9 +115,21 @@ export function PlannerDeposits({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
+                        className="text-muted-foreground"
+                        aria-label={`Edit deposit: ${deposit.bank} ${deposit.accountNumber}`}
+                        onClick={() => onEdit(deposit)}
+                      >
+                        <Pencil aria-hidden="true" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
                         className="text-muted-foreground hover:text-destructive"
                         aria-label={`Remove deposit: ${deposit.bank} ${deposit.accountNumber}`}
-                        onClick={() => onDelete(deposit.id)}
+                        onClick={() => {
+                          if (window.confirm(`Delete the ${deposit.bank} deposit (A/c ${deposit.accountNumber})?`)) onDelete(deposit.id)
+                        }}
                       >
                         <Trash2 aria-hidden="true" />
                       </Button>

@@ -32,7 +32,7 @@ import { PlannerReminders } from "@/components/planner-reminders"
 import { PlannerSheetInfo } from "@/components/planner-sheet-info"
 import { PlannerTasks } from "@/components/planner-tasks"
 import { EVENT_CATEGORIES, EXPENSE_CATEGORIES, OTHER_CATEGORY, formatCurrency, formatDateLong, nextMonthlyDate, normalizeCategories } from "@/components/planner-data"
-import type { CalendarEvent, CreateKind, FeedbackItem, NewPlannerRecord, PlannerData, PlannerTask, PlannerView, Reminder } from "@/components/planner-types"
+import type { CalendarEvent, CreateKind, Expense, FeedbackItem, FixedDeposit, NewPlannerRecord, PlannerData, PlannerTask, PlannerView, Reminder } from "@/components/planner-types"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS: { id: PlannerView; label: string; icon: LucideIcon }[] = [
@@ -200,6 +200,8 @@ export function PlannerShell({ today }: { today: string }) {
   const [createDate, setCreateDate] = useState(today)
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const [editingTask, setEditingTask] = useState<PlannerTask | null>(null)
+  const [editingDeposit, setEditingDeposit] = useState<FixedDeposit | null>(null)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(today)
   const pageCopy = PAGE_COPY[activeView]
   const [categoriesOpen, setCategoriesOpen] = useState(false)
@@ -222,25 +224,45 @@ export function PlannerShell({ today }: { today: string }) {
     : 0
   const upcomingEvents = data.events.filter((event) => event.date >= today).length
 
-  function openCreate(kind: CreateKind, date = today) {
+  function clearEditing() {
     setEditingEvent(null)
     setEditingTask(null)
+    setEditingDeposit(null)
+    setEditingExpense(null)
+  }
+
+  function openCreate(kind: CreateKind, date = today) {
+    clearEditing()
     setCreateDate(date)
     setCreateKind(kind)
   }
 
   function openEditEvent(event: CalendarEvent) {
-    setEditingTask(null)
+    clearEditing()
     setEditingEvent(event)
     setCreateDate(event.date)
     setCreateKind("event")
   }
 
   function openEditTask(task: PlannerTask) {
-    setEditingEvent(null)
+    clearEditing()
     setEditingTask(task)
     setCreateDate(task.dueDate)
     setCreateKind("task")
+  }
+
+  function openEditDeposit(deposit: FixedDeposit) {
+    clearEditing()
+    setEditingDeposit(deposit)
+    setCreateDate(deposit.depositDate)
+    setCreateKind("deposit")
+  }
+
+  function openEditExpense(expense: Expense) {
+    clearEditing()
+    setEditingExpense(expense)
+    setCreateDate(expense.date)
+    setCreateKind("expense")
   }
 
   async function persistRecord(kind: string, id: string, item: unknown, operation: "upsert" | "delete") {
@@ -315,8 +337,8 @@ export function PlannerShell({ today }: { today: string }) {
     await persistRecord(record.kind, record.item.id, record.item, "upsert")
     setData((current) => {
       switch (record.kind) {
-        case "expense": return { ...current, expenses: [record.item, ...current.expenses] }
-        case "deposit": return { ...current, deposits: [record.item, ...current.deposits] }
+        case "expense": return { ...current, expenses: [record.item, ...current.expenses.filter((item) => item.id !== record.item.id)] }
+        case "deposit": return { ...current, deposits: [record.item, ...current.deposits.filter((item) => item.id !== record.item.id)] }
         case "task": return { ...current, tasks: [record.item, ...current.tasks.filter((item) => item.id !== record.item.id)] }
         case "goal": return { ...current, goals: [record.item, ...current.goals] }
         case "reminder": return { ...current, reminders: [record.item, ...current.reminders] }
@@ -470,7 +492,7 @@ export function PlannerShell({ today }: { today: string }) {
             <PlannerOverview data={data} today={today} onNavigate={setActiveView} onOpenCreate={openCreate} onEditEvent={openEditEvent} onToggleTask={toggleTask} />
           ) : null}
           {activeView === "expenses" ? (
-            <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onDelete={removeExpense} />
+            <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onEdit={openEditExpense} onDelete={removeExpense} />
           ) : null}
           {activeView === "tasks" ? (
             <PlannerTasks tasks={data.tasks} categories={categories} today={today} onAdd={() => openCreate("task")} onEdit={openEditTask} onToggle={toggleTask} onDelete={removeTask} />
@@ -494,7 +516,7 @@ export function PlannerShell({ today }: { today: string }) {
             <PlannerReminders reminders={data.reminders} categories={categories} today={today} onAdd={() => openCreate("reminder")} onToggle={toggleReminder} onDelete={removeReminder} />
           ) : null}
           {activeView === "deposits" ? (
-            <PlannerDeposits deposits={data.deposits} today={today} onAdd={() => openCreate("deposit")} onDelete={removeDeposit} />
+            <PlannerDeposits deposits={data.deposits} today={today} onAdd={() => openCreate("deposit")} onEdit={openEditDeposit} onDelete={removeDeposit} />
           ) : null}
           {activeView === "feedback" ? (
             <PlannerFeedback items={data.feedback} today={today} onSave={saveFeedback} onDelete={removeFeedback} />
@@ -505,7 +527,7 @@ export function PlannerShell({ today }: { today: string }) {
 
       <MobileNavigation activeView={activeView} onNavigate={setActiveView} />
       <PlannerCreateDialog
-        key={`${createKind ?? "closed"}-${createDate}-${editingEvent?.id ?? editingTask?.id ?? "new"}`}
+        key={`${createKind ?? "closed"}-${createDate}-${editingEvent?.id ?? editingTask?.id ?? editingDeposit?.id ?? editingExpense?.id ?? "new"}`}
         open={createKind !== null}
         kind={createKind}
         categories={categories}
@@ -514,7 +536,9 @@ export function PlannerShell({ today }: { today: string }) {
         defaultDate={createDate}
         editEvent={editingEvent}
         editTask={editingTask}
-        onOpenChange={(open) => { if (!open) { setCreateKind(null); setEditingEvent(null); setEditingTask(null) } }}
+        editDeposit={editingDeposit}
+        editExpense={editingExpense}
+        onOpenChange={(open) => { if (!open) { setCreateKind(null); clearEditing() } }}
         onCreate={addRecord}
         onCreateReminders={addReminders}
       />
