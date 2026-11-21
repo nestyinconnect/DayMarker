@@ -205,6 +205,12 @@ export function PlannerShell({ today }: { today: string }) {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(today)
   const pageCopy = PAGE_COPY[activeView]
   const [categoriesOpen, setCategoriesOpen] = useState(false)
+  const [categoriesGroup, setCategoriesGroup] = useState("general")
+
+  function openCategories(group: "general" | "expense") {
+    setCategoriesGroup(group)
+    setCategoriesOpen(true)
+  }
   const categories = normalizeCategories(data.categories ?? EVENT_CATEGORIES)
   const expenseCategories = normalizeCategories(data.expenseCategories ?? EXPENSE_CATEGORIES)
   const countByCategory = (items: { category?: string }[]) => items.reduce<Record<string, number>>((counts, item) => {
@@ -454,7 +460,7 @@ export function PlannerShell({ today }: { today: string }) {
               <Badge variant={syncStatus === "ready" ? "outline" : "secondary"} className="hidden sm:inline-flex">
                 {syncStatus === "loading" ? "Connecting to Sheets" : syncStatus === "ready" ? "Google Sheets connected" : "Sheets disconnected"}
               </Badge>
-              <Button variant="outline" className="h-10 rounded-full px-3 sm:px-4" aria-label="Manage categories" onClick={() => setCategoriesOpen(true)}>
+              <Button variant="outline" className="h-10 rounded-full px-3 sm:px-4" aria-label="Manage categories" onClick={() => openCategories("general")}>
                 <Tags data-icon="inline-start" aria-hidden="true" />
                 <span className="hidden sm:inline">Categories</span>
               </Button>
@@ -492,7 +498,7 @@ export function PlannerShell({ today }: { today: string }) {
             <PlannerOverview data={data} today={today} onNavigate={setActiveView} onOpenCreate={openCreate} onEditEvent={openEditEvent} onToggleTask={toggleTask} />
           ) : null}
           {activeView === "expenses" ? (
-            <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onEdit={openEditExpense} onDelete={removeExpense} />
+            <PlannerExpenses data={data} today={today} onAdd={() => openCreate("expense")} onEdit={openEditExpense} onDelete={removeExpense} onManageCategories={() => openCategories("expense")} />
           ) : null}
           {activeView === "tasks" ? (
             <PlannerTasks tasks={data.tasks} categories={categories} today={today} onAdd={() => openCreate("task")} onEdit={openEditTask} onToggle={toggleTask} onDelete={removeTask} />
@@ -543,6 +549,8 @@ export function PlannerShell({ today }: { today: string }) {
         onCreateReminders={addReminders}
       />
       <PlannerCategoriesDialog
+        key={categoriesGroup}
+        initialGroupId={categoriesGroup}
         open={categoriesOpen}
         onOpenChange={setCategoriesOpen}
         groups={[

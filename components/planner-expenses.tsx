@@ -1,4 +1,5 @@
-import { CircleDollarSign, Plus, Receipt, Tag } from "lucide-react"
+import { useState } from "react"
+import { CircleDollarSign, Plus, Receipt, Tag, Tags } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -14,18 +15,30 @@ export function PlannerExpenses({
   onAdd,
   onEdit,
   onDelete,
+  onManageCategories,
 }: {
   data: PlannerData
   today: string
   onAdd: () => void
   onEdit: (expense: Expense) => void
   onDelete: (id: string) => void
+  onManageCategories: () => void
 }) {
   const monthKey = today.slice(0, 7)
   const monthExpenses = data.expenses
     .filter((expense) => expense.date.startsWith(monthKey))
     .sort((a, b) => b.date.localeCompare(a.date))
   const allExpenses = [...data.expenses].sort((a, b) => b.date.localeCompare(a.date))
+  const [view, setView] = useState<"list" | "category">("list")
+  const allTotal = allExpenses.reduce((sum, expense) => sum + expense.amount, 0)
+  const allByCategory = Object.entries(
+    allExpenses.reduce<Record<string, Expense[]>>((groups, expense) => {
+      (groups[expense.category] ??= []).push(expense)
+      return groups
+    }, {}),
+  )
+    .map(([category, items]) => ({ category, items, total: items.reduce((sum, expense) => sum + expense.amount, 0) }))
+    .sort((a, b) => b.total - a.total)
   const total = monthExpenses.reduce((sum, expense) => sum + expense.amount, 0)
   const average = monthExpenses.length ? total / monthExpenses.length : 0
   const totalsByCategory = monthExpenses.reduce<Record<string, number>>((totals, expense) => {
@@ -40,7 +53,12 @@ export function PlannerExpenses({
       <SectionHeader
         title="Monthly overview"
         description={`Your recorded spending for ${monthLabel(monthKey)}.`}
-        action={<Button onClick={onAdd}><Plus data-icon="inline-start" aria-hidden="true" />Add expense</Button>}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={onManageCategories}><Tags data-icon="inline-start" aria-hidden="true" />Categories</Button>
+            <Button onClick={onAdd}><Plus data-icon="inline-start" aria-hidden="true" />Add expense</Button>
+          </div>
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
@@ -90,15 +108,44 @@ export function PlannerExpenses({
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+          <CardHeader className="flex flex-col gap-3 space-y-0 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle>All expenses</CardTitle>
-              <CardDescription className="mt-1">Most recent entries first.</CardDescription>
+              <CardDescription className="mt-1">
+                {view === "list" ? "Most recent entries first." : "Grouped by category, largest total first."}
+              </CardDescription>
             </div>
-            <Badge variant="secondary">{allExpenses.length} total</Badge>
+            <div className="flex items-center gap-2">
+              <div role="group" aria-label="Expense view" className="flex gap-1 rounded-lg bg-muted p-1">
+                <Button type="button" size="xs" variant={view === "list" ? "default" : "ghost"} aria-pressed={view === "list"} onClick={() => setView("list")}>List</Button>
+                <Button type="button" size="xs" variant={view === "category" ? "default" : "ghost"} aria-pressed={view === "category"} onClick={() => setView("category")}>By category</Button>
+              </div>
+              <Badge variant="secondary">{allExpenses.length} total</Badge>
+            </div>
           </CardHeader>
           <CardContent className="pt-0">
-            {allExpenses.length ? (
+            {allExpenses.length && view === "category" ? (
+              <div className="space-y-5">
+                {allByCategory.map(({ category, items, total: categoryTotal }) => (
+                  <section key={category} aria-labelledby={`expense-group-${category}`}>
+                    <div className="flex items-center justify-between gap-3 border-b border-border/70 pb-2">
+                      <div className="min-w-0">
+                        <h3 id={`expense-group-${category}`} className="truncate text-sm font-semibold">{category}</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {items.length} {items.length === 1 ? "entry" : "entries"} · {allTotal ? Math.round((categoryTotal / allTotal) * 100) : 0}% of total
+                        </p>
+                      </div>
+                      <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(categoryTotal)}</p>
+                    </div>
+                    <div className="divide-y divide-border/70">
+                      {items.map((expense) => (
+                        <ExpenseRow key={expense.id} expense={expense} onEdit={onEdit} onDelete={onDelete} />
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            ) : allExpenses.length ? (
               <div>
                 {allExpenses.map((expense, index) => (
                   <div key={expense.id}>

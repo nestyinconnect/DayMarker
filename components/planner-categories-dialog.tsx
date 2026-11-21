@@ -25,13 +25,15 @@ export interface CategoryGroup {
 export function PlannerCategoriesDialog({
   open,
   groups,
+  initialGroupId,
   onOpenChange,
 }: {
   open: boolean
   groups: CategoryGroup[]
+  initialGroupId?: string
   onOpenChange: (open: boolean) => void
 }) {
-  const [activeId, setActiveId] = useState(groups[0]?.id)
+  const [activeId, setActiveId] = useState(initialGroupId ?? groups[0]?.id)
   const group = groups.find((item) => item.id === activeId) ?? groups[0]
   const { categories, usage } = group
   const [newName, setNewName] = useState("")
